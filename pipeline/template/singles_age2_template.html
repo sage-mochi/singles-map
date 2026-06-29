@@ -1,0 +1,583 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Singles Map — It's When, Not Where</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+  :root{
+    --paper:#F4F3EE; --panel:#FCFBF7; --ink:#1F2A2D; --ink-soft:#5A6663;
+    --hair:#D9D8CE; --land:#FBFBF8; --border:#C9C8BE;
+    --men:#2B7CB0; --women:#D6463D;
+  }
+  *{box-sizing:border-box} html,body{margin:0}
+  body{background:var(--paper);color:var(--ink);font-family:"Public Sans",system-ui,sans-serif;-webkit-font-smoothing:antialiased;line-height:1.45}
+  .wrap{max-width:1080px;margin:0 auto;padding:30px 20px 56px}
+  header{max-width:780px}
+  .eyebrow{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-soft);font-weight:600;margin:0 0 12px}
+  h1{font-family:"Fraunces",Georgia,serif;font-weight:500;font-size:clamp(28px,4.6vw,46px);line-height:1.04;margin:0;letter-spacing:-.01em}
+  h1 em{font-style:italic;color:var(--ink-soft)}
+  .dek{margin:14px 0 0;max-width:64ch;color:var(--ink-soft);font-size:15px}
+
+  h2.sec{font-family:"Fraunces",serif;font-weight:500;font-size:25px;margin:48px 0 4px;letter-spacing:-.01em}
+  .sub{color:var(--ink-soft);font-size:14px;margin:0 0 16px;max-width:66ch}
+
+  .figure{background:var(--panel);border:1px solid var(--hair);padding:14px 16px}
+  svg{display:block;width:100%;height:auto;overflow:visible}
+
+  /* flip chart */
+  .flipbar{transition:none}
+  .flip-axis{stroke:var(--ink);stroke-width:1}
+  .flip-grid{stroke:var(--hair);stroke-width:1}
+  .flip-tick{font-size:10px;fill:var(--ink-soft);font-family:"Public Sans"}
+  .flip-band{font-size:11px;fill:var(--ink);font-family:"Public Sans";font-weight:500;text-anchor:middle}
+  .flip-val{font-size:10px;font-family:"Public Sans";font-weight:600;text-anchor:middle}
+  .flip-anno{font-size:11.5px;fill:var(--ink);font-family:"Public Sans"}
+  .flip-anno.italic{font-style:italic;fill:var(--ink-soft)}
+
+  /* controls */
+  .toolbar{display:flex;flex-wrap:wrap;gap:14px 20px;align-items:center;margin:0 0 12px}
+  .lab{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-soft);font-weight:600}
+  .seg{display:inline-flex;border:1px solid var(--ink);background:var(--panel)}
+  .seg button{font-family:inherit;font-size:13px;font-weight:500;color:var(--ink);background:transparent;border:0;padding:7px 13px;cursor:pointer;border-right:1px solid var(--hair);transition:background .18s,color .18s}
+  .seg button:last-child{border-right:0}
+  .seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+  .seg button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+  .playbtn{font-family:inherit;font-size:13px;font-weight:600;color:var(--paper);background:var(--ink);border:0;padding:8px 16px;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+  .playbtn:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+  .age-row{display:flex;align-items:center;gap:14px;margin:0 0 14px;flex-wrap:wrap}
+  .age-slider{flex:1;min-width:240px;display:flex;flex-direction:column;gap:4px}
+  .racehint{display:none;font-size:12px;color:var(--ink-soft);max-width:92ch;margin:6px 0 12px;padding-left:10px;border-left:2px solid var(--hair)}
+  .racehint.show{display:block}
+  .age-row.disabled{opacity:.4;pointer-events:none}
+  .playbtn:disabled{opacity:.4;cursor:default}
+  input[type=range]{width:100%;accent-color:var(--ink);cursor:pointer}
+  .age-ticks{display:flex;justify-content:space-between;font-size:10px;color:var(--ink-soft)}
+  .age-now{font-family:"Fraunces",serif;font-size:20px;min-width:118px}
+  .age-now small{font-family:"Public Sans";font-size:11px;color:var(--ink-soft);display:block;font-weight:500}
+
+  /* flip counter */
+  .counter{display:flex;align-items:center;gap:0;height:26px;border:1px solid var(--hair);overflow:hidden;min-width:240px;flex:1;border-radius:3px}
+  .counter .cm,.counter .cw{height:100%;display:flex;align-items:center;color:#fff;font-size:11.5px;font-weight:600;transition:width .5s cubic-bezier(.22,.61,.36,1);white-space:nowrap;overflow:hidden}
+  .counter .cm{background:var(--men);justify-content:flex-start;padding-left:9px}
+  .counter .cw{background:var(--women);justify-content:flex-end;padding-right:9px}
+  .counter-wrap{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+  .counter-wrap .lab{white-space:nowrap}
+
+  .state{fill:var(--land);stroke:var(--border);stroke-width:.6}
+  .metro{stroke:#fff;stroke-width:.6;cursor:pointer;transition:r .55s cubic-bezier(.22,.61,.36,1),fill .55s,fill-opacity .2s}
+  .metro:hover{stroke:var(--ink);stroke-width:1.2}
+  .metro.city{stroke:var(--ink);stroke-width:1;stroke-dasharray:2.5 1.6}
+  .lbl{font-family:"Public Sans";font-size:10.5px;fill:var(--ink);font-weight:500;paint-order:stroke;stroke:var(--panel);stroke-width:2.6px;stroke-linejoin:round}
+  .leader{stroke:var(--ink-soft);stroke-width:.6;fill:none;opacity:.5}
+  .leghead{font-family:"Public Sans";font-size:12px;font-weight:600}
+  .legnum{font-family:"Public Sans";font-size:10px;fill:var(--ink);font-weight:500}
+
+  #tip{position:fixed;pointer-events:none;z-index:50;background:var(--ink);color:var(--paper);padding:9px 12px;font-size:12px;line-height:1.55;border-radius:5px;opacity:0;transition:opacity .12s;max-width:260px;box-shadow:0 8px 26px rgba(0,0,0,.2)}
+  #tip .hd{font-family:"Fraunces",serif;font-size:13.5px;margin-bottom:4px;padding-bottom:4px;border-bottom:1px solid #ffffff22}
+  #tip .tg{display:flex;justify-content:space-between;gap:18px}
+  #tip .k{color:#cdd6d4}
+  #tip .verdict{margin-top:5px;font-weight:600}
+  #tip .verdict.m{color:#8fc4e6} #tip .verdict.w{color:#f0a39c}
+  #tip .citynote{margin-top:6px;padding-top:6px;border-top:1px solid #ffffff22;font-size:11px;color:#cdd6d4;font-style:italic;line-height:1.45}
+
+  footer{margin-top:20px;font-size:11.5px;color:var(--ink-soft);display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
+  footer b{color:var(--ink)}
+  .notes{margin-top:16px;font-size:12.5px;color:var(--ink-soft);max-width:94ch;line-height:1.6}
+  .notes p{margin:0 0 9px} .notes b{color:var(--ink)} .notes code{background:#e9e8df;padding:1px 5px;border-radius:3px;font-size:11.5px}
+
+  .tbl-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;margin-top:18px}
+  .tbl-card{background:var(--panel);border:1px solid var(--hair);padding:14px 16px 12px}
+  .tbl-card h3{font-family:"Fraunces",serif;font-weight:500;font-size:18px;margin:0 0 2px}
+  .tbl-card .cap{font-size:11.5px;color:var(--ink-soft);margin:0 0 10px}
+  table.rt{width:100%;border-collapse:collapse;font-size:12.5px}
+  table.rt th{text-align:left;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);
+    font-weight:600;padding:0 8px 6px 0;border-bottom:1px solid var(--hair)}
+  table.rt th.num,table.rt td.num{text-align:right;padding-right:0}
+  table.rt td{padding:6px 8px 6px 0;border-bottom:1px solid var(--hair-soft);vertical-align:middle}
+  table.rt tr:last-child td{border-bottom:0}
+  table.rt .rank{color:var(--ink-soft);font-variant-numeric:tabular-nums;width:18px}
+  table.rt .place{font-weight:500}
+  table.rt .place small{color:var(--ink-soft);font-weight:400;margin-left:4px}
+  .tbl-scroll{max-height:430px;overflow-y:auto;margin-top:2px;border-top:1px solid var(--hair)}
+  .tbl-scroll::-webkit-scrollbar{width:9px}
+  .tbl-scroll::-webkit-scrollbar-thumb{background:var(--hair);border-radius:5px}
+  table.rt thead th{position:sticky;top:0;background:var(--panel);z-index:2;padding-top:8px;
+    box-shadow:inset 0 -1px 0 var(--hair)}
+  .pt-r{color:#C0392B;font-weight:600} .pt-d{color:#2960A8;font-weight:600} .pt-x{color:var(--ink-soft)}
+  .party-key{font-size:11.5px;color:var(--ink-soft);display:flex;gap:16px;align-items:center;margin:10px 0 0}
+  .party-key b.r{color:#C0392B} .party-key b.d{color:#2960A8}
+  table.rt .ratio{font-weight:600;color:var(--women);font-variant-numeric:tabular-nums;white-space:nowrap}
+  table.rt .cnt{color:var(--ink-soft);font-variant-numeric:tabular-nums}
+  .rbar{display:inline-block;height:5px;background:var(--women);border-radius:3px;vertical-align:middle;margin-left:6px;opacity:.55}
+  :root{--hair-soft:#ECEBE3}
+
+  .analysis{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:16px}
+  .acard{background:var(--panel);border:1px solid var(--hair);border-top:3px solid var(--ink);padding:16px 18px}
+  .acard h4{font-family:"Fraunces",serif;font-weight:500;font-size:17px;margin:0 0 8px;line-height:1.15}
+  .acard p{margin:0;font-size:13px;color:var(--ink-soft);line-height:1.55}
+  .acard p b{color:var(--ink)}
+  .ah{font-family:"Fraunces",serif;font-weight:500;font-size:21px;margin:40px 0 6px;letter-spacing:-.01em}
+  .ap{font-size:14px;color:var(--ink-soft);line-height:1.62;max-width:88ch;margin:0 0 14px}
+  .ap b{color:var(--ink)} .ap .men{color:var(--men);font-weight:600} .ap .women{color:var(--women);font-weight:600}
+  .chart-pair{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0 18px}
+  .chart-cap{font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-soft);font-weight:600;margin:2px 2px 6px}
+  .c-axis{stroke:var(--ink);stroke-width:1} .c-grid{stroke:var(--hair);stroke-width:1}
+  .c-tick{font-size:10px;fill:var(--ink-soft);font-family:"Public Sans"}
+  .c-band{font-size:10.5px;fill:var(--ink);font-family:"Public Sans";text-anchor:middle}
+  .c-lbl{font-size:11px;font-family:"Public Sans";font-weight:600}
+  .c-val{font-size:9.5px;font-family:"Public Sans";font-weight:600;text-anchor:middle;fill:#fff}
+  @media (max-width:820px){.analysis{grid-template-columns:1fr}.chart-pair{grid-template-columns:1fr}}
+  @media (prefers-reduced-motion:reduce){.metro,.counter .cm,.counter .cw{transition:none}}
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">American Community Survey · 2024 1-Year Estimates</p>
+    <h1>The Singles Map: it's <em>when</em>, not where</h1>
+    <p class="dek">The famous map sizes each metro by its surplus of single men (blue) or single women (red), ages 20–64. But that single number hides the real pattern — the imbalance is driven far more by <em>age</em> than by <em>place</em>. Below: the national age curve first, then the map you can scrub through age by age and watch flip.</p>
+  </header>
+
+  <h2 class="sec">The whole country flips around 40</h2>
+  <p class="sub">National single men minus single women, by age, summed across all 229 metros. Young singles skew male almost everywhere; older singles skew female almost everywhere. The crossover sits at roughly 40–44.</p>
+  <div class="figure">
+    <svg id="flip" viewBox="0 0 960 360" role="img" aria-label="National gender gap among singles by age"></svg>
+  </div>
+
+  <h2 class="sec">The same flip, on the map</h2>
+  <p class="sub">Drag the slider or press play to move through age bands. Watch the map turn from blue to red — the geography barely changes the story, the age does. Four points are <b>cities, not metros</b> (dashed outline): Los Angeles, Long Beach and Anaheim are split out of their shared metro, and New York City stands alone — hover any of them for the geography caveat.</p>
+
+  <div class="toolbar" style="margin-bottom:2px">
+    <span class="lab">Race / origin</span>
+    <div class="seg" id="raceSeg" role="group" aria-label="Race filter">
+      <button data-r="all" aria-pressed="true">All</button>
+      <button data-r="White">White</button>
+      <button data-r="Black">Black</button>
+      <button data-r="Asian">Asian</button>
+      <button data-r="Hispanic">Hispanic</button>
+      <button data-r="Two or more">Two+</button>
+    </div>
+  </div>
+  <p class="racehint" id="racehint">Census 1-year tables break marital status down by race <i>or</i> by age, not both — so race views cover all single adults 15+ and the age slider is paused. Differences between groups partly reflect their age structure (older groups carry more widowed and divorced singles).</p>
+
+  <div class="age-row">
+    <button class="playbtn" id="play">▶ Play ages</button>
+    <div class="age-slider">
+      <input type="range" id="age" min="0" max="9" step="1" value="0" aria-label="Age band">
+      <div class="age-ticks" id="ageTicks"></div>
+    </div>
+    <div class="age-now"><span id="ageNow">All ages</span><small id="ageNowSub">20–64</small></div>
+  </div>
+
+  <div class="counter-wrap">
+    <span class="lab">Metros leaning</span>
+    <div class="counter" id="counter" title="metros leaning male vs female">
+      <div class="cm" id="cm"></div><div class="cw" id="cw"></div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <span class="lab">Size circles by</span>
+    <div class="seg" id="modeSeg" role="group" aria-label="Sizing mode">
+      <button data-m="abs" aria-pressed="true">Absolute gap</button>
+      <button data-m="rate" aria-pressed="false">Per 1,000 singles</button>
+      <button data-m="ratio" aria-pressed="false">Men per 100 women</button>
+    </div>
+  </div>
+
+  <div class="figure">
+    <svg id="map" viewBox="0 0 960 648" role="img" aria-label="Map of US metros by single-gender imbalance"></svg>
+  </div>
+
+  <footer>
+    <span><b>Source.</b> U.S. Census Bureau, ACS 2024 1-Year Estimates, table B12002 (never-married + divorced + separated + widowed). Coordinates: Census CBSA Gazetteer.</span>
+    <span>227 metro areas + 4 city insets</span>
+  </footer>
+
+  <h2 class="sec">Where the singles skew hardest, under 40</h2>
+  <p class="sub">A separate, scrollable ranking of the top 100 metros for each under-40 bracket (metros with 8,000+ singles in that bracket). Toggle the direction: the female-heavy list is the set of exceptions to the national male-surplus rule; the male-heavy list is that rule at its most extreme.</p>
+  <div class="toolbar" style="margin-bottom:0">
+    <span class="lab">Show metros with most</span>
+    <div class="seg" id="dirSeg" role="group" aria-label="Ratio direction">
+      <button data-d="women" aria-pressed="true">Women per 100 men</button>
+      <button data-d="men" aria-pressed="false">Men per 100 women</button>
+    </div>
+  </div>
+  <p class="party-key">State codes colored by 2024 presidential vote: <b class="r">red = Trump</b> · <b class="d">blue = Harris</b> <span style="opacity:.7">(statewide winner; multi-state metros show each state)</span></p>
+  <div class="tbl-grid" id="ratioTables"></div>
+
+  <h2 class="sec">Analysis: what the numbers say</h2>
+  <p class="sub">Three findings, and a hypothesis for the one that puzzles people most.</p>
+  <div class="analysis" id="analysis"></div>
+
+  <h3 class="ah">The puzzle: why are young men the surplus, if births are ~50/50?</h3>
+  <p class="ap" id="puzzleIntro"></p>
+  <div class="chart-pair">
+    <div class="figure"><div class="chart-cap">Single-male surplus, decomposed (national)</div>
+      <svg id="decomp" viewBox="0 0 560 320" role="img" aria-label="Decomposition of the single male surplus"></svg></div>
+    <div class="figure"><div class="chart-cap">Share currently married, by age</div>
+      <svg id="pmchart" viewBox="0 0 560 320" role="img" aria-label="Percent married by age and sex"></svg></div>
+  </div>
+  <div class="ap" id="puzzleBody"></div>
+
+  <div class="notes" id="notes"></div>
+</div>
+
+<div id="tip" role="status" aria-live="polite"></div>
+
+<script>
+const D = __DATA__;
+const RT = __RTABLES__;
+const AN = __ANALYSIS__;
+const STATES = __STATES__;
+const BANDS = D.bands;                       // 9 five-year bands
+const AGE_LABELS = ["All ages",...BANDS];
+const SUBS = ["20–64",...BANDS.map(b=>b+" yrs")];
+
+const LABELS=[
+  {m:"New York",a:"start",dx:34,dy:-14},{m:"Boston",a:"start",dx:30,dy:-2},
+  {m:"Philadelphia",a:"start",dx:30,dy:10},{m:"Washington",a:"start",dx:38,dy:24},
+  {m:"Atlanta",a:"start",dx:20,dy:18},{m:"Charlotte",a:"start",dx:18,dy:2},
+  {m:"Miami",a:"start",dx:14,dy:12},{m:"Memphis",a:"end",dx:-16,dy:-4},
+  {m:"New Orleans",a:"middle",dx:0,dy:26},{m:"Chicago",a:"middle",dx:8,dy:-22},
+  {m:"Minneapolis",a:"middle",dx:0,dy:-22},{m:"Dallas",a:"middle",dx:-4,dy:26},
+  {m:"Houston",a:"middle",dx:10,dy:24},{m:"Denver",a:"end",dx:-14,dy:-16},
+  {m:"Phoenix",a:"middle",dx:0,dy:26},{m:"Las Vegas",a:"end",dx:-16,dy:-8},
+  {m:"Los Angeles",a:"end",dx:-20,dy:-2},{m:"Long Beach",a:"end",dx:-12,dy:18},{m:"Anaheim",a:"start",dx:14,dy:12},{m:"San Diego",a:"end",dx:-16,dy:26},
+  {m:"San Francisco",a:"end",dx:-22,dy:-4},{m:"Seattle",a:"end",dx:-18,dy:-10},
+  {m:"Urban Honolulu",a:"start",dx:16,dy:2},
+];
+const F=d3 => d3; // noop
+function start(){
+  if(!window.d3) return setTimeout(start,40);
+  const fmt=d3.format(",");
+
+  /* ---------- per-metro selection helpers ---------- */
+  // sel: -1 = all, else band index. race: "all" or a race key (all-ages 15+)
+  const sumA=arr=>arr.reduce((a,b)=>a+b,0);
+  function rd(r){ return race!=="all" ? (r.race[race]||null) : null; }
+  function maleOf(r,sel){ const x=rd(r); if(x) return x.m; return sel<0?sumA(r.m):r.m[sel]; }
+  function femOf(r,sel){ const x=rd(r); if(x) return x.w; return sel<0?sumA(r.w):r.w[sel]; }
+  function hasData(r){ return race==="all" ? true : !!rd(r); }
+  function diffOf(r,sel){ if(race!=="all"&&!rd(r)) return 0; return maleOf(r,sel)-femOf(r,sel); }
+  function singlesOf(r,sel){ if(race!=="all"&&!rd(r)) return 0; return maleOf(r,sel)+femOf(r,sel); }
+  function rateOf(r,sel){ const s=singlesOf(r,sel); return s>0?1000*diffOf(r,sel)/s:0; }
+
+  /* ============ NATIONAL FLIP CHART ============ */
+  (function flipChart(){
+    const svg=d3.select("#flip"), W=960,H=360, m={t:24,r:24,b:46,l:64};
+    const iw=W-m.l-m.r, ih=H-m.t-m.b;
+    const gaps=BANDS.map((b,i)=>D.natM[i]-D.natW[i]);
+    const x=d3.scaleBand().domain(BANDS).range([m.l,m.l+iw]).padding(.28);
+    const mx=d3.max(gaps,g=>Math.abs(g))*1.12;
+    const y=d3.scaleLinear().domain([-mx,mx]).range([m.t+ih,m.t]);
+    // gridlines
+    const ticks=y.ticks(6);
+    svg.append("g").selectAll("line").data(ticks).enter().append("line")
+      .attr("class","flip-grid").attr("x1",m.l).attr("x2",m.l+iw).attr("y1",y).attr("y2",y);
+    svg.append("g").selectAll("text").data(ticks).enter().append("text")
+      .attr("class","flip-tick").attr("x",m.l-8).attr("y",d=>y(d)+3).attr("text-anchor","end")
+      .text(d=>(d>0?"+":"")+d3.format(".2s")(d).replace("G","B"));
+    // bars
+    svg.append("g").selectAll("rect").data(gaps).enter().append("rect")
+      .attr("class","flipbar").attr("x",(d,i)=>x(BANDS[i])).attr("width",x.bandwidth())
+      .attr("y",d=>d>0?y(d):y(0)).attr("height",d=>Math.abs(y(d)-y(0)))
+      .attr("fill",d=>d>0?"var(--men)":"var(--women)").attr("fill-opacity",.85);
+    // value labels
+    svg.append("g").selectAll("text").data(gaps).enter().append("text")
+      .attr("class","flip-val").attr("x",(d,i)=>x(BANDS[i])+x.bandwidth()/2)
+      .attr("y",d=>d>0?y(d)-6:y(d)+14).attr("fill",d=>d>0?"var(--men)":"var(--women)")
+      .text(d=>(d>0?"+":"−")+d3.format(".2s")(Math.abs(d)));
+    // band labels along zero axis
+    svg.append("g").selectAll("text").data(BANDS).enter().append("text")
+      .attr("class","flip-band").attr("x",d=>x(d)+x.bandwidth()/2).attr("y",H-22).text(d=>d);
+    // zero axis
+    svg.append("line").attr("class","flip-axis").attr("x1",m.l).attr("x2",m.l+iw).attr("y1",y(0)).attr("y2",y(0));
+    // headers
+    svg.append("text").attr("class","flip-anno").attr("x",m.l+4).attr("y",m.t+10).attr("fill","var(--men)").attr("font-weight",600).text("▲ more single MEN");
+    svg.append("text").attr("class","flip-anno").attr("x",m.l+4).attr("y",m.t+ih-2).attr("fill","var(--women)").attr("font-weight",600).text("▼ more single WOMEN");
+    // crossover annotation near 40-44
+    const cx=x("40-44")+x.bandwidth()/2;
+    svg.append("text").attr("class","flip-anno italic").attr("x",cx).attr("y",y(0)-2).attr("text-anchor","middle").attr("dy",-2).text("");
+    svg.append("text").attr("class","flip-anno italic").attr("x",cx+x.bandwidth()).attr("y",m.t+ih/2).attr("text-anchor","middle").text("the crossover ≈ 40");
+  })();
+
+  /* ============ MAP ============ */
+  const svg=d3.select("#map"), W=960,H=648,LEG=104;
+  const proj=d3.geoAlbersUsa(), path=d3.geoPath(proj);
+  proj.fitExtent([[14,LEG+6],[W-14,H-10]],{type:"FeatureCollection",features:STATES.features});
+  const gMap=svg.append("g");
+  gMap.selectAll("path.state").data(STATES.features).enter().append("path").attr("class","state").attr("d",path);
+
+  const pts=[];
+  for(const r of D.metros){const xy=proj([r.lon,r.lat]); if(!xy)continue; r.x=xy[0]; r.y=xy[1]; pts.push(r);}
+
+  // men per 100 women, and its log (symmetric sizing magnitude)
+  function men100(r,sel){const m=maleOf(r,sel), w=femOf(r,sel); return (w>0&&(race==="all"||rd(r)))?100*m/w:null;}
+  function lnRatio(r,sel){const v=men100(r,sel); return (v&&v>0)?Math.abs(Math.log(v/100)):0;}
+
+  const scales={
+    abs:  {all:d3.scaleSqrt().domain([0,140000]).range([0,34]), band:d3.scaleSqrt().domain([0,72000]).range([0,32]), race:d3.scaleSqrt().domain([0,285000]).range([0,34])},
+    rate: {all:d3.scaleSqrt().domain([0,95]).range([0,30]),     band:d3.scaleSqrt().domain([0,150]).range([0,30]),    race:d3.scaleSqrt().domain([0,200]).range([0,30])},
+    ratio:{all:d3.scaleSqrt().domain([0,0.55]).range([0,30]),   band:d3.scaleSqrt().domain([0,0.65]).range([0,30]),   race:d3.scaleSqrt().domain([0,0.7]).range([0,30])},
+  };
+  // legend entries per mode/scope. men & women sides may differ (ratio is reciprocal).
+  const lnAbs=v=>Math.abs(Math.log(v/100));
+  const legend={
+    abs:  {all:{men:[2500,10000,20000,40000],women:[2500,10000,20000,40000]},
+           band:{men:[2500,10000,25000,50000],women:[2500,10000,25000,50000]},
+           race:{men:[10000,40000,100000,200000],women:[10000,40000,100000,200000]}, mag:v=>v, t:fmt},
+    rate: {all:{men:[10,25,50,75],women:[10,25,50,75]},
+           band:{men:[25,50,100,150],women:[25,50,100,150]},
+           race:{men:[25,50,100,200],women:[25,50,100,200]}, mag:v=>v, t:v=>v+"/1k"},
+    ratio:{all:{men:[110,130,160],women:[91,77,63]},
+           band:{men:[115,140,180],women:[87,71,56]},
+           race:{men:[120,150,200],women:[83,67,50]}, mag:lnAbs, t:v=>v},
+  };
+
+  let mode="abs", sel=-1, race="all"; // sel -1 = all ages; race "all" = age-resolved
+  const scaleKey=()=>race!=="all"?"race":(sel<0?"all":"band");
+  const curScale=()=>scales[mode][scaleKey()];
+  function magnitude(r){ // raw sizing magnitude before clip
+    return mode==="abs"?Math.abs(diffOf(r,sel)) : mode==="rate"?Math.abs(rateOf(r,sel)) : lnRatio(r,sel);
+  }
+  function value(r){ if(race!=="all"&&!rd(r)) return 0; return Math.min(magnitude(r), curScale().domain()[1]); } // clip
+  const COL=r=>diffOf(r,sel)>0?"var(--men)":"var(--women)";
+
+  const tip=document.getElementById("tip");
+  const RLAB={White:"White (non-Hisp.)",Black:"Black",Asian:"Asian",Hispanic:"Hispanic","Two or more":"Two or more races"};
+  function tipHTML(r){
+    const cnote = r.city ? `<div class="citynote">City proper (Census place) — covers the city limits only, not the surrounding metro region, so its circle isn't directly comparable to the metro-area circles around it.</div>` : "";
+    if(race!=="all" && !rd(r))
+      return `<div class="hd">${r.full}</div><div class="tg"><span class="k">${RLAB[race]} singles</span><b>no 1-yr estimate</b></div>${cnote}`;
+    const dd=diffOf(r,sel), rt=rateOf(r,sel), r100=men100(r,sel);
+    const ageTxt = race!=="all" ? "all single adults 15+" : (sel<0?"ages 20–64":"ages "+BANDS[sel]);
+    const grp = race!=="all" ? RLAB[race]+" · " : "";
+    const v=dd>0?`<div class="verdict m">+${fmt(Math.abs(dd))} more single men</div>`
+                :`<div class="verdict w">+${fmt(Math.abs(dd))} more single women</div>`;
+    return `<div class="hd">${r.full}</div>
+      <div class="tg"><span class="k">${grp}single men</span><b>${fmt(maleOf(r,sel))}</b></div>
+      <div class="tg"><span class="k">${grp}single women</span><b>${fmt(femOf(r,sel))}</b></div>
+      <div class="tg"><span class="k">Sex ratio</span><b>${r100?Math.round(r100):"—"} men / 100 women</b></div>
+      <div class="tg"><span class="k">Per 1,000 singles</span><b>${(rt>0?"+":"")+rt.toFixed(1)}</b></div>
+      <div class="tg"><span class="k" style="font-size:10.5px">${ageTxt}</span></div>${v}${cnote}`;
+  }
+  function move(e){const pad=14;let x=e.clientX+pad,y=e.clientY+pad,tw=tip.offsetWidth,th=tip.offsetHeight;
+    if(x+tw>innerWidth-8)x=e.clientX-tw-pad; if(y+th>innerHeight-8)y=e.clientY-th-pad;
+    tip.style.left=x+"px";tip.style.top=y+"px";}
+
+  const circles=gMap.append("g").selectAll("circle").data(pts).enter().append("circle")
+    .attr("class",d=>d.city?"metro city":"metro").attr("cx",d=>d.x).attr("cy",d=>d.y).attr("fill-opacity",.72)
+    .on("mousemove",(e,d)=>{tip.innerHTML=tipHTML(d);tip.style.opacity=1;move(e);})
+    .on("mouseleave",()=>tip.style.opacity=0);
+
+  const gL=svg.append("g");
+  function drawLabels(){
+    gL.selectAll("*").remove();
+    const S=curScale();
+    for(const L of LABELS){
+      const r=pts.find(p=>p.full.startsWith(L.m)||p.n===L.m||p.full.indexOf(L.m)>-1); if(!r)continue;
+      const rad=S(value(r));
+      const baseLen=Math.hypot(L.dx,L.dy)||1, ux=L.dx/baseLen, uy=L.dy/baseLen;
+      const dist=Math.max(baseLen, rad+9);          // keep label just outside the (current) circle
+      const lx=r.x+ux*dist, ly=r.y+uy*dist;
+      const ex=r.x+ux*rad, ey=r.y+uy*rad;           // leader starts at circle edge
+      // only draw leader if there is a real gap between edge and label
+      if(dist-rad>3)
+        gL.append("line").attr("class","leader").attr("x1",ex).attr("y1",ey)
+          .attr("x2",lx-(L.a==="start"?3:L.a==="end"?-3:0)).attr("y2",ly-3);
+      gL.append("text").attr("class","lbl").attr("x",lx).attr("y",ly).attr("text-anchor",L.a).text(r.n);
+    }
+  }
+  const gLeg=svg.append("g");
+  function drawLegend(){
+    gLeg.selectAll("*").remove();
+    const cx=W/2, baseY=68, S=curScale(), cfg=legend[mode][scaleKey()], magf=legend[mode].mag, tf=legend[mode].t;
+    gLeg.append("text").attr("x",cx-150).attr("y",18).attr("text-anchor","middle").attr("class","leghead").attr("fill","var(--men)").text("More single men");
+    gLeg.append("text").attr("x",cx+150).attr("y",18).attr("text-anchor","middle").attr("class","leghead").attr("fill","var(--women)").text("More single women");
+    if(mode==="ratio"){
+      gLeg.append("text").attr("x",cx).attr("y",baseY+30).attr("text-anchor","middle").attr("class","legnum").attr("fill","var(--ink-soft)").text("men per 100 women");
+    }
+    function side(sgn,vals){let x=cx+sgn*18;const out=[];
+      vals.map(v=>({v,rr:S(magf(v))})).sort((a,b)=>b.rr-a.rr).forEach(o=>{x+=sgn*(o.rr+2);out.push({...o,x});x+=sgn*(o.rr+8);});return out;}
+    [[-1,"var(--men)",cfg.men],[1,"var(--women)",cfg.women]].forEach(([sgn,col,vals])=>{
+      side(sgn,vals).forEach(p=>{
+        gLeg.append("circle").attr("cx",p.x).attr("cy",baseY).attr("r",p.rr).attr("fill",col).attr("fill-opacity",.72).attr("stroke","#fff").attr("stroke-width",.6);
+        gLeg.append("line").attr("x1",p.x).attr("y1",baseY+p.rr+1).attr("x2",p.x).attr("y2",baseY+18).attr("stroke","var(--hair)").attr("stroke-width",.8).attr("stroke-dasharray","1.5 1.5");
+        gLeg.append("text").attr("x",p.x).attr("y",baseY+30).attr("text-anchor","middle").attr("class","legnum").text(tf(p.v));
+      });
+    });
+  }
+
+  /* counter + age UI */
+  const cm=document.getElementById("cm"), cw=document.getElementById("cw");
+  function updateCounter(){
+    let male=0,fem=0;
+    for(const r of pts){ if(race!=="all"&&!rd(r)) continue; const dd=diffOf(r,sel); if(dd>0)male++; else if(dd<0)fem++;}
+    const tot=male+fem||1;
+    cm.style.width=(100*male/tot)+"%"; cw.style.width=(100*fem/tot)+"%";
+    cm.textContent=male>10?male+" male":male; cw.textContent=fem>10?fem+" female":fem;
+  }
+  const ageNow=document.getElementById("ageNow"), ageNowSub=document.getElementById("ageNowSub");
+  const slider=document.getElementById("age");
+  // ticks
+  document.getElementById("ageTicks").innerHTML=AGE_LABELS.map((l,i)=>`<span>${i===0?"All":BANDS[i-1].split("-")[0]}</span>`).join("");
+
+  function update(animate){
+    const S=curScale();
+    circles.attr("fill",d=>COL(d)).attr("fill-opacity",d=>(race!=="all"&&!rd(d))?0:.72);
+    (animate?circles.transition().duration(520):circles).attr("r",d=>S(value(d)));
+    circles.sort((a,b)=>S(value(b))-S(value(a)));
+    if(race!=="all"){ ageNow.textContent=RLAB[race]; ageNowSub.textContent="all singles 15+"; }
+    else { ageNow.textContent=AGE_LABELS[sel+1]; ageNowSub.textContent=SUBS[sel+1]; }
+    drawLabels(); drawLegend(); updateCounter();
+  }
+
+  slider.addEventListener("input",()=>{stopPlay(); sel=(+slider.value)-1; update(true);});
+  document.getElementById("modeSeg").addEventListener("click",e=>{
+    const b=e.target.closest("button"); if(!b)return; mode=b.dataset.m;
+    [...document.querySelectorAll("#modeSeg button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.m===mode));
+    update(true);
+  });
+
+  /* play */
+  let timer=null; const playBtn=document.getElementById("play");
+  function stopPlay(){ if(timer){clearInterval(timer);timer=null;playBtn.textContent="▶ Play ages";} }
+  playBtn.addEventListener("click",()=>{
+    if(timer){stopPlay();return;}
+    playBtn.textContent="❚❚ Pause"; sel=0; slider.value=1; update(true);
+    timer=setInterval(()=>{
+      sel++; if(sel>8){sel=8;slider.value=9;update(true);stopPlay();return;}
+      slider.value=sel+1; update(true);
+    },950);
+  });
+
+  /* race filter */
+  const ageRow=document.querySelector(".age-row"), racehint=document.getElementById("racehint");
+  document.getElementById("raceSeg").addEventListener("click",e=>{
+    const b=e.target.closest("button"); if(!b)return;
+    stopPlay(); race=b.dataset.r;
+    if(race!=="all"){ sel=-1; slider.value=0; }
+    [...document.querySelectorAll("#raceSeg button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.r===race));
+    const on=race!=="all";
+    ageRow.classList.toggle("disabled",on); slider.disabled=on; playBtn.disabled=on;
+    racehint.classList.toggle("show",on);
+    update(true);
+  });
+
+  update(false);
+
+  /* ---- ratio tables (toggle direction) + analysis ---- */
+  const ORDER=["20-24","25-29","30-34","35-39"];
+  const TITLES={"20-24":"Ages 20–24","25-29":"Ages 25–29","30-34":"Ages 30–34","35-39":"Ages 35–39"};
+  // 2024 presidential statewide winner: R = Trump, D = Harris
+  const PARTY={CA:"d",CO:"d",CT:"d",DE:"d",HI:"d",IL:"d",ME:"d",MD:"d",MA:"d",MN:"d",NH:"d",NJ:"d",NM:"d",NY:"d",OR:"d",RI:"d",VT:"d",VA:"d",WA:"d",DC:"d",
+    AL:"r",AK:"r",AZ:"r",AR:"r",FL:"r",GA:"r",ID:"r",IN:"r",IA:"r",KS:"r",KY:"r",LA:"r",MI:"r",MS:"r",MO:"r",MT:"r",NE:"r",NV:"r",NC:"r",ND:"r",OH:"r",OK:"r",PA:"r",SC:"r",SD:"r",TN:"r",TX:"r",UT:"r",WV:"r",WI:"r",WY:"r"};
+  const stateHTML=st=>st.split("-").map(s=>`<span class="pt-${PARTY[s]||'x'}">${s}</span>`).join("-");
+  function renderTables(dir){
+    const wrap=document.getElementById("ratioTables"); wrap.innerHTML="";
+    const tabs=RT[dir];
+    const colHead=dir==="women"?"Women /100 men":"Men /100 women";
+    const accent=dir==="women"?"var(--women)":"var(--men)";
+    let maxR=0; ORDER.forEach(b=>tabs[b].rows.forEach(r=>maxR=Math.max(maxR,r.r)));
+    for(const b of ORDER){
+      const t=tabs[b]; const card=document.createElement("div"); card.className="tbl-card";
+      let rows="";
+      t.rows.forEach((x,i)=>{
+        const barW=Math.max(2,Math.round(40*(x.r-100)/(maxR-100)));
+        rows+=`<tr><td class="rank">${i+1}</td>
+          <td class="place">${x.metro}<small>${stateHTML(x.st)}</small></td>
+          <td class="num ratio" style="color:${accent}">${x.r.toFixed(0)}<span class="rbar" style="background:${accent};width:${barW}px"></span></td>
+          <td class="num cnt">${fmt(x.w)}</td><td class="num cnt">${fmt(x.m)}</td></tr>`;
+      });
+      card.innerHTML=`<h3>${TITLES[b]}</h3>
+        <p class="cap">Top ${t.rows.length} of ${t.n} metros · most single ${dir==="women"?"women per 100 men":"men per 100 women"}</p>
+        <div class="tbl-scroll"><table class="rt"><thead><tr><th></th><th>Metro</th><th class="num">${colHead}</th><th class="num">Single ♀</th><th class="num">Single ♂</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      wrap.appendChild(card);
+    }
+  }
+  renderTables("women");
+  document.getElementById("dirSeg").addEventListener("click",e=>{
+    const b=e.target.closest("button"); if(!b)return;
+    [...document.querySelectorAll("#dirSeg button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.d===b.dataset.d));
+    renderTables(b.dataset.d);
+  });
+
+  /* ---- analysis: summary cards + prose ---- */
+  (function analysis(){
+    const dc=AN.decomp, b2529=dc.find(r=>r.band==="25-29");
+    const baseShare=Math.round(100*b2529.base/b2529.single), timeShare=100-baseShare;
+    document.getElementById("analysis").innerHTML=`
+      <div class="acard"><h4>The sign of the gap is set by age, not place</h4>
+        <p>At <b>25–29, single men outnumber women in 201 of 229 metros</b>; by <b>60–64, women lead in 205 of 229</b>. The national gap runs <b>+767K men</b> at 25–29 and <b>−832K</b> (women) at 60–64, crossing zero near 42.</p></div>
+      <div class="acard"><h4>Geography sorts by industry, not coast</h4>
+        <p>Male-heavy metros cluster around <b>military bases, energy, tech and male-skewed colleges</b> (Bremerton, Colorado Springs, Provo, College Station). Female-heavy ones concentrate in the <b>South and women-heavy college towns</b> (Jackson, Montgomery, Charlottesville).</p></div>
+      <div class="acard"><h4>The headline gap is fading over time</h4>
+        <p>New York's female surplus has fallen from <b>~211K (2006)</b> to <b>~136K (2024)</b> as the marriage age keeps rising for both sexes — about <b>31 for men, 29 for women</b> now, a gap held near two years for over a decade.</p></div>`;
+
+    document.getElementById("puzzleIntro").innerHTML=
+      `Births run about 105 boys per 100 girls, and even into the 30s the living population is only slightly male — roughly <b>${b2529.sexratio} men per 100 women</b> at 25–29. Yet single men outnumber single women by more than a million at that age. If the population is nearly balanced, where does the surplus come from? The data points to one mechanism above all: <b>women marry earlier, and marry older men.</b>`;
+
+    document.getElementById("puzzleBody").innerHTML=
+      `<p>The left chart splits the single-male surplus into two parts. The <span class="men">population component</span> is simply how many more men than women are alive at that age. The <span class="women">marriage-timing component</span> is how many more women than men have <i>already left the single pool</i> into marriage. At <b>25–29, only ${baseShare}% of the ~${(b2529.single/1e6).toFixed(1)}-million-man surplus comes from there being more men — the other ${timeShare}% comes from women pairing off first.</b> The right chart shows why: women cross the 50%-married line a full bracket before men. Because the typical bride is ~2 years younger than the typical groom, every cohort of women is partly marrying <i>up and out</i> into older men, draining the female side of the singles ledger faster than the male side fills.</p>
+      <p>This single mechanism explains both halves of the famous map. The same age gap that leaves <span class="men">young men</span> without partners (their future wives are younger and not yet "available") later leaves <span class="women">older women</span> without them (their male age-peers married younger women, and men die sooner). The crossover near 42 is just the age where "married earlier" stops outweighing "more men alive." So the original map's advice — move for a better ratio — mostly tells you the age mix of a metro: a place looks blue because it's full of 20-somethings, and red because it skews older or divorced. <b>Where is largely a proxy for when.</b></p>`;
+
+    /* decomposition stacked bars */
+    (function(){
+      const svg=d3.select("#decomp"),W=560,H=320,m={t:16,r:14,b:54,l:52},iw=W-m.l-m.r,ih=H-m.t-m.b;
+      const data=dc.filter(r=>["20-24","25-29","30-34","35-39"].includes(r.band));
+      const x=d3.scaleBand().domain(data.map(d=>d.band)).range([m.l,m.l+iw]).padding(.34);
+      const ymax=d3.max(data,d=>Math.max(d.single,d.base+Math.max(0,d.timing)))*1.1;
+      const y=d3.scaleLinear().domain([0,ymax]).range([m.t+ih,m.t]);
+      d3.range(0,ymax,250000).forEach(t=>{svg.append("line").attr("class","c-grid").attr("x1",m.l).attr("x2",m.l+iw).attr("y1",y(t)).attr("y2",y(t));
+        svg.append("text").attr("class","c-tick").attr("x",m.l-7).attr("y",y(t)+3).attr("text-anchor","end").text(d3.format(".1s")(t).replace("M","M"));});
+      data.forEach(d=>{
+        const base=Math.max(0,d.base), timing=Math.max(0,d.timing);
+        svg.append("rect").attr("x",x(d.band)).attr("width",x.bandwidth()).attr("y",y(base)).attr("height",y(0)-y(base)).attr("fill","var(--men)").attr("fill-opacity",.85);
+        svg.append("rect").attr("x",x(d.band)).attr("width",x.bandwidth()).attr("y",y(base+timing)).attr("height",y(0)-y(timing)).attr("fill","var(--women)").attr("fill-opacity",.8);
+        if(base>120000) svg.append("text").attr("class","c-val").attr("x",x(d.band)+x.bandwidth()/2).attr("y",(y(0)+y(base))/2+3).text(d3.format(".0%")(d.base/d.single));
+        if(timing>120000) svg.append("text").attr("class","c-val").attr("x",x(d.band)+x.bandwidth()/2).attr("y",(y(base)+y(base+timing))/2+3).text(d3.format(".0%")(d.timing/d.single));
+        svg.append("text").attr("class","c-band").attr("x",x(d.band)+x.bandwidth()/2).attr("y",H-34).text(d.band);
+      });
+      svg.append("line").attr("class","c-axis").attr("x1",m.l).attr("x2",m.l+iw).attr("y1",y(0)).attr("y2",y(0));
+      svg.append("rect").attr("x",m.l).attr("y",H-18).attr("width",10).attr("height",10).attr("fill","var(--men)").attr("fill-opacity",.85);
+      svg.append("text").attr("class","c-tick").attr("x",m.l+15).attr("y",H-9).text("more men alive");
+      svg.append("rect").attr("x",m.l+118).attr("y",H-18).attr("width",10).attr("height",10).attr("fill","var(--women)").attr("fill-opacity",.8);
+      svg.append("text").attr("class","c-tick").attr("x",m.l+133).attr("y",H-9).text("more women already married");
+    })();
+
+    /* % married by age, men vs women */
+    (function(){
+      const svg=d3.select("#pmchart"),W=560,H=320,m={t:16,r:60,b:40,l:38},iw=W-m.l-m.r,ih=H-m.t-m.b;
+      const pm=AN.pctmarried;
+      const x=d3.scalePoint().domain(pm.map(d=>d.band)).range([m.l,m.l+iw]).padding(.4);
+      const y=d3.scaleLinear().domain([0,75]).range([m.t+ih,m.t]);
+      [0,25,50,75].forEach(t=>{svg.append("line").attr("class","c-grid").attr("x1",m.l).attr("x2",m.l+iw).attr("y1",y(t)).attr("y2",y(t));
+        svg.append("text").attr("class","c-tick").attr("x",m.l-6).attr("y",y(t)+3).attr("text-anchor","end").text(t+"%");});
+      // 50% reference
+      svg.append("line").attr("x1",m.l).attr("x2",m.l+iw).attr("y1",y(50)).attr("y2",y(50)).attr("stroke","var(--ink-soft)").attr("stroke-dasharray","3 3").attr("stroke-width",.8).attr("opacity",.5);
+      const line=k=>d3.line().x(d=>x(d.band)).y(d=>y(d[k])).curve(d3.curveMonotoneX);
+      svg.append("path").attr("d",line("M")(pm)).attr("fill","none").attr("stroke","var(--men)").attr("stroke-width",2.4);
+      svg.append("path").attr("d",line("F")(pm)).attr("fill","none").attr("stroke","var(--women)").attr("stroke-width",2.4);
+      pm.forEach(d=>{svg.append("circle").attr("cx",x(d.band)).attr("cy",y(d.M)).attr("r",2.4).attr("fill","var(--men)");
+        svg.append("circle").attr("cx",x(d.band)).attr("cy",y(d.F)).attr("r",2.4).attr("fill","var(--women)");});
+      const last=pm[pm.length-1];
+      svg.append("text").attr("class","c-lbl").attr("x",x(last.band)+8).attr("y",y(last.M)+4).attr("fill","var(--men)").text("Men");
+      svg.append("text").attr("class","c-lbl").attr("x",x(last.band)+8).attr("y",y(last.F)+4).attr("fill","var(--women)").text("Women");
+      // x labels (every other)
+      pm.forEach((d,i)=>{ if(i%2===0) svg.append("text").attr("class","c-band").attr("x",x(d.band)).attr("y",H-12).text(d.band);});
+    })();
+  })();
+
+  /* notes */
+  document.getElementById("notes").innerHTML=`
+   <p><b>Why this fixes the original.</b> The 2007 map's implicit advice — move to the city with your favored surplus — barely survives contact with the age curve above. At 25–29, single men outnumber single women in 201 of 229 metros; by 60–64 women lead in 205 of 229. Almost everywhere is blue when young and red when old. Where you are nudges the number; how old you are sets the sign.</p>
+   <p><b>What "single" means.</b> Every unmarried adult — never-married, divorced, separated, or widowed — from table <code>B12002</code>, matching the original National Geographic definition. (Never-married only would tilt nearly every bar and circle blue, since men marry later; the divorced and widowed are what create the female surpluses at older ages.)</p>
+   <p><b>What a head-count gap still can't tell you.</b> Three limits no Census table removes: it counts <b>everyone single, not everyone looking</b> — the retired widower and the active dater are one number here; it ignores <b>who's compatible</b> — sexual orientation isn't in these tables, and most people partner near their own age, so a metro's overall surplus rarely matches the pool a given person actually draws from; and it treats <b>"unmarried" as "available,"</b> though many are cohabiting or otherwise partnered. Read it as a demographic portrait, not dating odds.</p>
+   <p><b>Three ways to size the circles.</b> <b>Absolute gap</b> is the original's metric — raw head-count difference, which rewards big metros. The other two normalize for size and, as a result, rank metros identically: <b>per 1,000 singles</b> expresses the gap as a share of the local single pool, while <b>men per 100 women</b> is the plain sex ratio — the most readable apples-to-apples number (100 = parity, 130 = thirty percent more men, 77 = its mirror image for women). The ratio view is sized by the log of the ratio, so an equal imbalance on either side draws an equal circle.</p>
+   <p><b>Precision.</b> Slicing into five-year bands shrinks each estimate and widens its margin of error (not shown); small-metro single bands are noisier than the all-ages view. The normalized views clip at the legend maximum so a few tiny, lopsided metros don't blow out the scale. The same caution applies to the ranking tables: an 8,000-single floor filters the worst noise, but the smallest qualifying metros (and the most extreme ratios, like Macon's 35–39 figure) rest on a few thousand people and carry wide error bars — the underlying counts are shown so you can weigh each row.</p>`;
+}
+start();
+</script>

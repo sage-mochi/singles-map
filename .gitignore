@@ -1,0 +1,25 @@
+# Heavy, regenerable build intermediates (scripts re-download / re-create these)
+pipeline/pums_cache/
+tract_pop.json
+tract_puma.csv
+deli.xlsx
+gaz_place.zip
+*.zip
+refs_published.json
+
+# Brainstorming docs
+docs/
+
+# Build scratch
+.build_check.js
+check*.js
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS / editor
+.DS_Store
+*.swp
