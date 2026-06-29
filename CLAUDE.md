@@ -40,7 +40,7 @@ git add site/index.html && git commit -m "rebuild map" && git push
 Two data tracks — keep them distinct:
 
 1. **Current map data** (`data/byage_min.json`, `ratio_tables2.json`, `analysis_data.json`, `states_v2.json`) comes from **published ACS tables**. This is what the deployed map runs on today.
-2. **PUMS rebuild** (`build_xwalk.py`, `build_pums_bulk.py`) is the **future foundation** — microdata-based, validated through Milestone 3 (`pums_metro_m3.json`: economic + race×age + edu×age + per-metro MOE), but **not yet wired into the map** (that's M4). Don't conflate its output with the live map data. `build_pums_metro.py` is the older M2 API ingest, kept as a reference.
+2. **PUMS rebuild** (`build_xwalk.py`, `build_pums_bulk.py` → `pums_metro_m3.json`: economic + race×age + edu×age + per-metro MOE) is now **wired into the live map** (M4): joined to the map metros by CBSA `code` (baked in by `attach_cbsa.py`) and injected as the `__M3__` data file. It powers the economic filter, the age-aware race filter, and the MOE layer — for the 222/227 metros it covers (city insets + CT fall back to published). `build_pums_metro.py` is the older M2 API ingest, kept as a reference.
 
 Flow: `pipeline/` scripts hit the Census API → write `data/*.json` → `build_map.py` injects them into `pipeline/template/singles_age2_template.html` → `site/index.html`. **Python never runs on GitHub Pages** — it's local build tooling. Only `site/*.html` deploys.
 
@@ -65,7 +65,7 @@ Inject the four JSON files into the template placeholders (`__DATA__`, `__STATES
 
 ## Status & next
 
-PUMS Milestones 1 (recode/weighting), 2 (geography), and 3 (bulk-CSV ingest → economic + race×age + edu×age + per-metro MOE, in `data/pums_metro_m3.json`) are done and validated; details in `docs/pums-milestone{1,2,3}-results.md`. M3's base reproduces M2 exactly (national +0.02%, large metros +0.00%). **Next: Milestone 4** — wire `pums_metro_m3.json` into the map UI (income/employment/education controls, age-aware race filter, MOE reliability layer) and refine small-metro allocation. Open decisions are listed in `docs/PROJECT_STATE.md`.
+PUMS Milestones 1–4 are done. M1–M3 built and validated the microdata pipeline (`data/pums_metro_m3.json`; M3 base reproduces M2 exactly — national +0.02%, large metros +0.00%); M4 wired it into the live map (economic filter, age-aware mutually-exclusive race filter, MOE reliability layer), joined by CBSA `code`. Details in `docs/pums-milestone{1,2,3}-results.md` and §9 of `PROJECT_STATE.md`. **Next: refinements** — NY/LA have no PUMS view (shown only as city insets; open decision #4), the 5 CT metros are uncovered, MOE isn't on the base/age view or ranking tables, and small-metro allocation still uses total-pop afact (open #1). Open decisions: `docs/PROJECT_STATE.md`.
 
 ## Docs
 
