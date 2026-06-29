@@ -215,6 +215,17 @@
 
   <h2 class="sec">Where the singles skew hardest, under 40</h2>
   <p class="sub">A separate, scrollable ranking of the top 100 metros for each under-40 bracket (metros with 8,000+ singles in that bracket). Toggle the direction: the female-heavy list is the set of exceptions to the national male-surplus rule; the male-heavy list is that rule at its most extreme.</p>
+  <div class="toolbar" style="margin-bottom:8px">
+    <span class="lab">Race / origin</span>
+    <div class="seg" id="tblRaceSeg" role="group" aria-label="Table race filter">
+      <button data-r="all" aria-pressed="true">All</button>
+      <button data-r="White" aria-pressed="false">White</button>
+      <button data-r="Black" aria-pressed="false">Black</button>
+      <button data-r="Asian" aria-pressed="false">Asian</button>
+      <button data-r="Hispanic" aria-pressed="false">Hispanic</button>
+      <button data-r="Two or more" aria-pressed="false">Two+</button>
+    </div>
+  </div>
   <div class="toolbar" style="margin-bottom:0">
     <span class="lab">Show metros with most</span>
     <div class="seg" id="dirSeg" role="group" aria-label="Ratio direction">
@@ -223,6 +234,7 @@
     </div>
   </div>
   <p class="party-key">State codes colored by 2024 presidential vote: <b class="r">red = Trump</b> · <b class="d">blue = Harris</b> <span style="opacity:.7">(statewide winner; multi-state metros show each state)</span></p>
+  <p class="sub" id="tblNote" style="margin-top:8px;display:none"></p>
   <div class="tbl-grid" id="ratioTables"></div>
 
   <h2 class="sec">Analysis: what the numbers say</h2>
@@ -596,12 +608,34 @@ function start(){
   const PARTY={CA:"d",CO:"d",CT:"d",DE:"d",HI:"d",IL:"d",ME:"d",MD:"d",MA:"d",MN:"d",NH:"d",NJ:"d",NM:"d",NY:"d",OR:"d",RI:"d",VT:"d",VA:"d",WA:"d",DC:"d",
     AL:"r",AK:"r",AZ:"r",AR:"r",FL:"r",GA:"r",ID:"r",IN:"r",IA:"r",KS:"r",KY:"r",LA:"r",MI:"r",MS:"r",MO:"r",MT:"r",NE:"r",NV:"r",NC:"r",ND:"r",OH:"r",OK:"r",PA:"r",SC:"r",SD:"r",TN:"r",TX:"r",UT:"r",WV:"r",WI:"r",WY:"r"};
   const stateHTML=st=>st.split("-").map(s=>`<span class="pt-${PARTY[s]||'x'}">${s}</span>`).join("-");
-  function renderTables(dir){
+  // Race rankings are computed live from the PUMS cross-tab (M3), which is the
+  // only source with race x age x metro. "All" keeps the published tables (RT).
+  const RACE_FLOOR=1000;   // min single (of that race) in the band to qualify
+  const RLABEL_T={White:"White (non-Hispanic)",Black:"Black",Asian:"Asian",Hispanic:"Hispanic","Two or more":"Two or more races"};
+  function buildRaceTabs(race,dir){
+    const key=RACE_KEY[race], tabs={};
+    for(const b of ORDER){
+      const bi=BANDS.indexOf(b), rows=[];
+      for(const r of D.metros){
+        const x=r.code?M3.metros[r.code]:null; if(!x) continue;
+        const node=x.race[key]; if(!node) continue;
+        const m=node.m[bi], w=node.w[bi];
+        if(m<=0||w<=0||m+w<RACE_FLOOR) continue;
+        rows.push({metro:r.n, st:(r.full.split(",").pop()||"").trim(), r:dir==="women"?100*w/m:100*m/w, w, m});
+      }
+      rows.sort((a,b)=>b.r-a.r);
+      tabs[b]={n:rows.length, rows:rows.slice(0,100)};
+    }
+    return tabs;
+  }
+  function renderTables(dir,race){
     const wrap=document.getElementById("ratioTables"); wrap.innerHTML="";
-    const tabs=RT[dir];
+    const tabs = race==="all" ? RT[dir] : buildRaceTabs(race,dir);
     const colHead=dir==="women"?"Women /100 men":"Men /100 women";
     const accent=dir==="women"?"var(--women)":"var(--men)";
     let maxR=0; ORDER.forEach(b=>tabs[b].rows.forEach(r=>maxR=Math.max(maxR,r.r)));
+    if(maxR<=100) maxR=160;
+    const grp = race==="all" ? "" : RLABEL_T[race]+" · ";
     for(const b of ORDER){
       const t=tabs[b]; const card=document.createElement("div"); card.className="tbl-card";
       let rows="";
@@ -613,16 +647,27 @@ function start(){
           <td class="num cnt">${fmt(x.w)}</td><td class="num cnt">${fmt(x.m)}</td></tr>`;
       });
       card.innerHTML=`<h3>${TITLES[b]}</h3>
-        <p class="cap">Top ${t.rows.length} of ${t.n} metros · most single ${dir==="women"?"women per 100 men":"men per 100 women"}</p>
+        <p class="cap">${grp}Top ${t.rows.length} of ${t.n} metros · most single ${dir==="women"?"women per 100 men":"men per 100 women"}</p>
         <div class="tbl-scroll"><table class="rt"><thead><tr><th></th><th>Metro</th><th class="num">${colHead}</th><th class="num">Single ♀</th><th class="num">Single ♂</th></tr></thead><tbody>${rows}</tbody></table></div>`;
       wrap.appendChild(card);
     }
+    const note=document.getElementById("tblNote");
+    if(race==="all"){ note.style.display="none"; }
+    else { note.style.display="block";
+      note.innerHTML=`<b>${RLABEL_T[race]} singles</b>, from Census PUMS microdata (2024 1-yr) — the only source with race by age by metro. Covers the 222 PUMS metros plus New York and Los Angeles (not the 5 Connecticut metros or the city insets); a metro needs ≥${fmt(RACE_FLOOR)} single ${RLABEL_T[race].toLowerCase()} adults in the bracket to appear. These subsets are smaller samples than the all-race view, so the rankings carry wider margins of error — treat the exact order, especially the extreme top rows on small metros, with caution.`;
+    }
   }
-  renderTables("women");
+  let tblDir="women", tblRace="all";
+  renderTables(tblDir,tblRace);
   document.getElementById("dirSeg").addEventListener("click",e=>{
-    const b=e.target.closest("button"); if(!b)return;
-    [...document.querySelectorAll("#dirSeg button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.d===b.dataset.d));
-    renderTables(b.dataset.d);
+    const b=e.target.closest("button"); if(!b)return; tblDir=b.dataset.d;
+    [...document.querySelectorAll("#dirSeg button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.d===tblDir));
+    renderTables(tblDir,tblRace);
+  });
+  document.getElementById("tblRaceSeg").addEventListener("click",e=>{
+    const b=e.target.closest("button"); if(!b)return; tblRace=b.dataset.r;
+    [...document.querySelectorAll("#tblRaceSeg button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.r===tblRace));
+    renderTables(tblDir,tblRace);
   });
 
   /* ---- analysis: summary cards + prose ---- */
