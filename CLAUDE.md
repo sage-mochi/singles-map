@@ -27,6 +27,8 @@ python pipeline/build_map.py
 python pipeline/build_xwalk.py             # -> data/puma_cbsa_xwalk.json  (first run: large downloads + ~51 tract-pop API calls, several min)
 python pipeline/build_pums_bulk.py         # -> data/pums_metro_m3.json  (M3: bulk-CSV ingest; cross-tabs + per-metro MOE; first run downloads ~1GB of per-state PUMS, resumable cache). --states 06,36 for a subset.
 python pipeline/build_pums_metro.py        # -> data/pums_metro_singles.json (M2 reference, API by-state; superseded by build_pums_bulk for ongoing work)
+python pipeline/build_pums_age.py          # -> data/pums_metro_age.json (single men/women by SINGLE YEAR of age + MOE; reuses build_pums_bulk's cached zips). Matchmaking metric.
+python pipeline/build_age_kernel.py        # -> data/age_kernel.json (empirical partner-age-gap kernel K from PUMS couples). Matchmaking metric.
 
 # validate the recode/weighting prototype
 python pipeline/pums_milestone1.py
@@ -55,7 +57,7 @@ Flow: `pipeline/` scripts hit the Census API → write `data/*.json` → `build_
 
 ## Map build pattern
 
-Inject the four JSON files into the template placeholders (`__DATA__`, `__STATES__`, `__RTABLES__`, `__ANALYSIS__`), then validate: extract the `<script>` and `node --check` it, and re-verify the embedded data before shipping. `build_map.py` does all of this.
+Inject the JSON data files into the template placeholders (`__DATA__`, `__STATES__`, `__RTABLES__`, `__ANALYSIS__`, `__M3__`, `__AGE__`, `__KERNEL__`), then validate: extract the `<script>` and `node --check` it, and re-verify the embedded data before shipping. `build_map.py` does all of this (UTF-8). The deployed HTML is ~2.1 MB (data baked in).
 
 ## Gotchas
 
@@ -65,7 +67,7 @@ Inject the four JSON files into the template placeholders (`__DATA__`, `__STATES
 
 ## Status & next
 
-PUMS Milestones 1–4 are done. M1–M3 built and validated the microdata pipeline (`data/pums_metro_m3.json`; M3 base reproduces M2 exactly — national +0.02%, large metros +0.00%); M4 wired it into the live map (economic filter, age-aware mutually-exclusive race filter, MOE reliability layer), joined by CBSA `code`. Details in `docs/pums-milestone{1,2,3}-results.md` and §9 of `PROJECT_STATE.md`. NY/LA now render as whole-metro `pumsOnly` circles under the PUMS lenses (`attach_cbsa.py`; the city insets step aside). **Next: refinements** — the 5 CT metros are uncovered, MOE isn't on the base/age view or ranking tables, and small-metro allocation still uses total-pop afact (open #1). Open decisions: `docs/PROJECT_STATE.md`.
+PUMS Milestones 1–4 are done. M1–M3 built and validated the microdata pipeline (`data/pums_metro_m3.json`; M3 base reproduces M2 exactly — national +0.02%, large metros +0.00%); M4 wired it into the live map (economic filter, age-aware mutually-exclusive race filter, MOE reliability layer), joined by CBSA `code`. Details in `docs/pums-milestone{1,2,3}-results.md` and §9 of `PROJECT_STATE.md`. NY/LA now render as whole-metro `pumsOnly` circles under the PUMS lenses (`attach_cbsa.py`; the city insets step aside). A **matchmaking view** (seeker mode) is built on the v2 availability ratio: for a seeker's sex/age/preferred-partner-range, `rivals ÷ available matches` per metro using single-year-of-age counts (`pums_metro_age.json`) and the empirical gap kernel (`age_kernel.json`) — surfacing that the age gap makes markets systematically easier for women / harder for men, which the same-age ratio hides. **Next: refinements** — 5 CT metros uncovered, per-row MOE flagging on the ranking tables, small-metro allocation (open #1). Open decisions: `docs/PROJECT_STATE.md`.
 
 ## Docs
 

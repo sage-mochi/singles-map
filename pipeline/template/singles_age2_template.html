@@ -47,6 +47,10 @@
   .playbtn{font-family:inherit;font-size:13px;font-weight:600;color:var(--paper);background:var(--ink);border:0;padding:8px 16px;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
   .playbtn:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 
+  .seeker-row{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin:8px 0 4px}
+  .seeker-field{display:flex;flex-direction:column;gap:3px;min-width:200px;flex:1}
+  .seeker-field label{font-size:12px;color:var(--ink-soft)} .seeker-field label b{color:var(--ink)}
+  .dual{display:flex;gap:8px} .dual input{flex:1}
   .age-row{display:flex;align-items:center;gap:14px;margin:0 0 14px;flex-wrap:wrap}
   .age-slider{flex:1;min-width:240px;display:flex;flex-direction:column;gap:4px}
   .racehint{display:none;font-size:12px;color:var(--ink-soft);max-width:92ch;margin:6px 0 12px;padding-left:10px;border-left:2px solid var(--hair)}
@@ -179,6 +183,32 @@
   </div>
   <p class="racehint" id="econhint">Modeled from Census <b>PUMS microdata</b> (2024 1-year), not the published tables: single adults 20–64 by personal income (total income in 2024 dollars) or employment. Unlike the race view, these <b>respect the age slider</b>. Income/employment and race can't be combined — the microdata cross-tabs are separate — so choosing one resets the other. Here New York and Los Angeles appear as whole metros (their city insets step aside); only the five Connecticut metros, which lack a clean PUMS-to-metro mapping, have no PUMS estimate.</p>
 
+  <div class="toolbar" style="margin-bottom:2px">
+    <span class="lab">Matchmaking view</span>
+    <div class="seg" id="seekerToggle" role="group" aria-label="Matchmaking view">
+      <button data-s="off" aria-pressed="true">Off</button>
+      <button data-s="on" aria-pressed="false">On — show my market</button>
+    </div>
+  </div>
+  <div id="seekerControls" style="display:none">
+    <div class="seeker-row">
+      <span class="lab">I am a</span>
+      <div class="seg" id="seekerSex" role="group" aria-label="Seeker sex">
+        <button data-x="m" aria-pressed="true">Man</button><button data-x="w" aria-pressed="false">Woman</button>
+      </div>
+      <div class="seeker-field">
+        <label for="seekerAge">My age <b id="seekerAgeLab">30</b></label>
+        <input type="range" id="seekerAge" min="20" max="64" step="1" value="30">
+      </div>
+      <div class="seeker-field">
+        <label>Open to partners aged <b id="seekerRangeLab">28–31</b></label>
+        <div class="dual"><input type="range" id="seekerLo" min="18" max="70" step="1" value="28">
+        <input type="range" id="seekerHi" min="18" max="70" step="1" value="31"></div>
+      </div>
+    </div>
+    <p class="racehint show" id="seekerHint"></p>
+  </div>
+
   <div class="age-row">
     <button class="playbtn" id="play">▶ Play ages</button>
     <div class="age-slider">
@@ -262,6 +292,8 @@ const RT = __RTABLES__;
 const AN = __ANALYSIS__;
 const STATES = __STATES__;
 const M3 = __M3__;                           // PUMS cross-tabs keyed by CBSA code
+const AGE = __AGE__;                          // single-year-of-age single counts + MOE
+const KERNEL = __KERNEL__;                    // empirical partner-age-gap kernel
 const BANDS = D.bands;                       // 9 five-year bands
 const AGE_LABELS = ["All ages",...BANDS];
 const SUBS = ["20–64",...BANDS.map(b=>b+" yrs")];
@@ -414,11 +446,42 @@ function start(){
   };
 
   let mode="abs", sel=-1, race="all", econ="all"; // sel -1 = all ages
+  const seeker={on:false, sex:"m", age:30, lo:28, hi:31};   // matchmaking mode
   const scaleKey=()=>sel<0?"all":"band"; // all lenses are age-resolved now (econ + PUMS race)
-  const pumsLens=()=>econ!=="all"||race!=="all";
+  const pumsLens=()=>econ!=="all"||race!=="all"||seeker.on;
   // NY/LA metro circles (pumsOnly) show only under a PUMS lens; their city-place
   // insets show only otherwise. Everything else: visible whenever it has data.
-  function shown(r){ return hasData(r) && (r.pumsOnly ? pumsLens() : true); }
+  function shown(r){
+    if(seeker.on) return !!(r.code && AGE.metros[r.code]);   // 222 + NY/LA; insets + CT hidden
+    return hasData(r) && (r.pumsOnly ? pumsLens() : true);
+  }
+
+  /* ---- v2 availability ratio (matchmaking): rivals per available match ----
+     matches = single opposite-sex people in your age range;
+     rivals  = same-sex competitors weighted by the empirical gap kernel g
+               (older men chasing younger women are counted). ratio = 100*rivals/matches. */
+  const SEEK_FAV="#2f8f6f", SEEK_TOUGH="#c2603f";
+  const seekScale=d3.scaleSqrt().domain([0,0.6]).range([0,27]);
+  function seekerData(r){
+    const x=r.code?AGE.metros[r.code]:null; if(!x) return null;
+    const opp = seeker.sex==="m"?x.w:x.m,  oppMoe = seeker.sex==="m"?x.w_moe:x.m_moe;
+    const same= seeker.sex==="m"?x.m:x.w,  sameMoe= seeker.sex==="m"?x.m_moe:x.w_moe;
+    const g=KERNEL.gapDist[seeker.sex];
+    const lo=Math.max(0,seeker.lo-20), hi=Math.min(44,seeker.hi-20);
+    let matches=0,mM2=0,rivals=0,rM2=0;
+    for(let a=lo;a<=hi;a++){
+      matches+=opp[a]; mM2+=oppMoe[a]*oppMoe[a];
+      let D=0,dM2=0;
+      for(let b=0;b<45;b++){ const w=g[a-b]; if(!w)continue; D+=same[b]*w; dM2+=(sameMoe[b]*w)**2; }
+      rivals+=D; rM2+=dM2;
+    }
+    if(matches<=0||rivals<=0) return null;
+    const ratio=100*rivals/matches, mMoe=Math.sqrt(mM2), rMoe=Math.sqrt(rM2);
+    return {matches, rivals, ratio, moe: ratio*Math.sqrt((mMoe/matches)**2+(rMoe/rivals)**2)};
+  }
+  const seekVal=r=> r._sr? Math.min(Math.abs(Math.log(r._sr.ratio/100)),0.6):0;
+  const seekCol=r=> r._sr? (r._sr.ratio<100?SEEK_FAV:SEEK_TOUGH):"#ccc";
+  const seekWithinMoe=r=> !!r._sr && Math.abs(r._sr.ratio-100) < r._sr.moe;
   const curScale=()=>scales[mode][scaleKey()];
   function magnitude(r){ // raw sizing magnitude before clip
     return mode==="abs"?Math.abs(diffOf(r,sel)) : mode==="rate"?Math.abs(rateOf(r,sel)) : lnRatio(r,sel);
@@ -431,6 +494,20 @@ function start(){
   const ECONLAB={emp:"Employed",i50:"$50k+ income",i75:"$75k+ income",i100:"$100k+ income"};
   function tipHTML(r){
     const cnote = r.city ? `<div class="citynote">City proper (Census place) — covers the city limits only, not the surrounding metro region, so its circle isn't directly comparable to the metro-area circles around it.</div>` : "";
+    if(seeker.on){
+      const sr = r._sr || ((r.code&&AGE.metros[r.code])?seekerData(r):null);
+      if(!sr) return `<div class="hd">${r.full}</div><div class="tg"><span class="k">your market</span><b>no PUMS estimate</b></div>${cnote}`;
+      const fav=sr.ratio<100, within=Math.abs(sr.ratio-100)<sr.moe;
+      const oppW=seeker.sex==="m"?"women":"men", rivW=seeker.sex==="m"?"men":"women";
+      const verdict = within ? `<div class="verdict" style="color:#cdd6d4">Effectively balanced — within margin of error</div>`
+                    : fav   ? `<div class="verdict" style="color:#8fe6c4">Favorable — ${Math.round(sr.ratio)} rivals per 100 matches</div>`
+                            : `<div class="verdict" style="color:#f0b39c">Tough — ${Math.round(sr.ratio)} rivals per 100 matches</div>`;
+      return `<div class="hd">${r.full}</div>
+        <div class="tg"><span class="k">Available ${oppW}, ${seeker.lo}–${seeker.hi}</span><b>${fmt(Math.round(sr.matches))}</b></div>
+        <div class="tg"><span class="k">Competing ${rivW} (weighted by K)</span><b>${fmt(Math.round(sr.rivals))}</b></div>
+        <div class="tg"><span class="k">Rivals per 100 matches</span><b>${Math.round(sr.ratio)} <span class="moe">±${Math.round(sr.moe)}</span></b></div>
+        <div class="tg"><span class="k" style="font-size:10.5px">${seeker.sex==="m"?"Man":"Woman"} ${seeker.age}, open to ${seeker.lo}–${seeker.hi}</span></div>${verdict}${cnote}`;
+    }
     if(!hasData(r)){
       const lab = econ!=="all" ? ECONLAB[econ]+" singles" : RLAB[race]+" singles";
       return `<div class="hd">${r.full}</div><div class="tg"><span class="k">${lab}</span><b>no PUMS estimate</b></div>${cnote}`;
@@ -462,7 +539,7 @@ function start(){
      so any metro is reachable even when a bigger neighbour overlaps it (acute in
      ratio mode and the dense NY/CA clusters). Labels point at the same logic. */
   let active=null;
-  const catchR=r=>Math.max(curScale()(value(r))+4, 12);   // per-metro grab radius (px)
+  const catchR=r=>Math.max((seeker.on?seekScale(seekVal(r)):curScale()(value(r)))+4, 12); // grab radius (px)
   function setActive(r,e){
     if(r!==active){
       active=r;
@@ -486,11 +563,11 @@ function start(){
   const gL=svg.append("g");
   function drawLabels(){
     gL.selectAll("*").remove();
-    const S=curScale(); const seen=new Set();   // one label per metro (LA metro matches 3 LABELS under PUMS)
+    const S = seeker.on ? seekScale : curScale(); const seen=new Set();   // one label per metro
     for(const L of LABELS){
       const r=pts.find(p=>shown(p)&&(p.full.startsWith(L.m)||p.n===L.m||p.full.indexOf(L.m)>-1)); if(!r||seen.has(r))continue;
       seen.add(r);
-      const rad=S(value(r));
+      const rad=S(seeker.on?seekVal(r):value(r));
       const baseLen=Math.hypot(L.dx,L.dy)||1, ux=L.dx/baseLen, uy=L.dy/baseLen;
       const dist=Math.max(baseLen, rad+9);          // keep label just outside the (current) circle
       const lx=r.x+ux*dist, ly=r.y+uy*dist;
@@ -507,7 +584,17 @@ function start(){
   const gLeg=svg.append("g");
   function drawLegend(){
     gLeg.selectAll("*").remove();
-    const cx=W/2, baseY=68, S=curScale(), cfg=legend[mode][scaleKey()], magf=legend[mode].mag, tf=legend[mode].t;
+    const cx=W/2, baseY=68;
+    if(seeker.on){
+      gLeg.append("text").attr("x",cx).attr("y",18).attr("text-anchor","middle").attr("class","leghead").text("Your market — rivals per available match (bigger circle = further from balance)");
+      [[-110,SEEK_FAV,"Favorable (fewer rivals)"],[70,SEEK_TOUGH,"Tough (more rivals)"]]
+        .forEach(([dx,col,txt])=>{
+          gLeg.append("circle").attr("cx",cx+dx).attr("cy",baseY).attr("r",9).attr("fill",col).attr("fill-opacity",.72).attr("stroke","#fff").attr("stroke-width",.6);
+          gLeg.append("text").attr("x",cx+dx+14).attr("y",baseY+4).attr("class","legnum").text(txt);
+        });
+      return;
+    }
+    const S=curScale(), cfg=legend[mode][scaleKey()], magf=legend[mode].mag, tf=legend[mode].t;
     gLeg.append("text").attr("x",cx-150).attr("y",18).attr("text-anchor","middle").attr("class","leghead").attr("fill","var(--men)").text("More single men");
     gLeg.append("text").attr("x",cx+150).attr("y",18).attr("text-anchor","middle").attr("class","leghead").attr("fill","var(--women)").text("More single women");
     if(mode==="ratio"){
@@ -527,16 +614,24 @@ function start(){
   /* counter + age UI */
   const cm=document.getElementById("cm"), cw=document.getElementById("cw"), cu=document.getElementById("cu");
   function updateCounter(){
-    let male=0,fem=0,close=0;
-    for(const r of pts){ if(!shown(r)) continue;
-      if(withinMoe(r,sel)){ close++; continue; }   // gap not statistically distinguishable
-      const dd=diffOf(r,sel); if(dd>0)male++; else if(dd<0)fem++;
+    let a=0,b=0,close=0;   // a=male/favorable, b=female/tough
+    if(seeker.on){
+      for(const r of pts){ if(!shown(r)||!r._sr) continue;
+        if(seekWithinMoe(r)){ close++; continue; }
+        if(r._sr.ratio<100) a++; else b++; }
+      cm.style.background=SEEK_FAV; cw.style.background=SEEK_TOUGH;
+    } else {
+      cm.style.background="var(--men)"; cw.style.background="var(--women)";
+      for(const r of pts){ if(!shown(r)) continue;
+        if(withinMoe(r,sel)){ close++; continue; }
+        const dd=diffOf(r,sel); if(dd>0)a++; else if(dd<0)b++; }
     }
-    const tot=male+fem+close||1;
-    cm.style.width=(100*male/tot)+"%"; cu.style.width=(100*close/tot)+"%"; cw.style.width=(100*fem/tot)+"%";
-    cm.textContent=male>10?male+" male":male||"";
+    const tot=a+b+close||1;
+    cm.style.width=(100*a/tot)+"%"; cu.style.width=(100*close/tot)+"%"; cw.style.width=(100*b/tot)+"%";
+    const la=seeker.on?"favorable":"male", lb=seeker.on?"tough":"female";
+    cm.textContent=a>10?a+" "+la:a||"";
     cu.textContent=close>20?close+" too close":(close>6?close:"");
-    cw.textContent=fem>10?fem+" female":fem||"";
+    cw.textContent=b>10?b+" "+lb:b||"";
   }
   const ageNow=document.getElementById("ageNow"), ageNowSub=document.getElementById("ageNowSub");
   const slider=document.getElementById("age");
@@ -544,13 +639,17 @@ function start(){
   document.getElementById("ageTicks").innerHTML=AGE_LABELS.map((l,i)=>`<span>${i===0?"All":BANDS[i-1].split("-")[0]}</span>`).join("");
 
   function update(animate){
-    const S=curScale();
-    const baseOp = mode==="ratio"?.56:.72;   // ratio circles overlap more -> more see-through
-    circles.attr("fill",d=>COL(d))
-      .attr("fill-opacity",d=> !shown(d)?0 : withinMoe(d,sel)?.24:baseOp)  // fade gaps within MOE
-      .classed("uncertain",d=>shown(d)&&withinMoe(d,sel));
-    (animate?circles.transition().duration(520):circles).attr("r",d=>shown(d)?S(value(d)):0);
-    circles.sort((a,b)=>S(value(b))-S(value(a)));
+    if(seeker.on) for(const r of pts) r._sr = (r.code&&AGE.metros[r.code])?seekerData(r):null;
+    const S = seeker.on ? seekScale : curScale();
+    const valf = seeker.on ? seekVal : value;
+    const colf = seeker.on ? seekCol : COL;
+    const wm   = seeker.on ? seekWithinMoe : (d=>withinMoe(d,sel));
+    const baseOp = (mode==="ratio"&&!seeker.on)?.56:.72;   // ratio circles overlap more -> see-through
+    circles.attr("fill",d=>colf(d))
+      .attr("fill-opacity",d=> !shown(d)?0 : wm(d)?.24:baseOp)  // fade within-MOE
+      .classed("uncertain",d=>shown(d)&&wm(d));
+    (animate?circles.transition().duration(520):circles).attr("r",d=>shown(d)?S(valf(d)):0);
+    circles.sort((a,b)=>S(valf(b))-S(valf(a)));
     ageNow.textContent=AGE_LABELS[sel+1]; ageNowSub.textContent=SUBS[sel+1];
     drawLabels(); drawLegend(); updateCounter();
   }
@@ -588,16 +687,51 @@ function start(){
   }
   document.getElementById("raceSeg").addEventListener("click",e=>{
     const b=e.target.closest("button"); if(!b)return;
-    race=b.dataset.r;
+    seekerOff(); race=b.dataset.r;
     if(race!=="all") econ="all";
     setRaceUI(); setEconUI(); update(true);
   });
   document.getElementById("econSeg").addEventListener("click",e=>{
     const b=e.target.closest("button"); if(!b)return;
-    econ=b.dataset.e;
+    seekerOff(); econ=b.dataset.e;
     if(econ!=="all") race="all";
     setRaceUI(); setEconUI(); update(true);
   });
+
+  /* ---- matchmaking (seeker) mode ---- */
+  const seekControls=document.getElementById("seekerControls");
+  function seekerOff(){ if(!seeker.on)return; seeker.on=false; seekControls.style.display="none";
+    [...document.querySelectorAll("#seekerToggle button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.s==="off")); }
+  function kernelRange(){ const k=KERNEL.bySex[seeker.sex][seeker.age]; return k?[k.p25,k.p75]:[Math.max(20,seeker.age-3),seeker.age+1]; }
+  function applyKernelDefault(){ const [lo,hi]=kernelRange(); seeker.lo=lo; seeker.hi=hi;
+    document.getElementById("seekerLo").value=lo; document.getElementById("seekerHi").value=hi; }
+  function seekerLabels(){
+    document.getElementById("seekerAgeLab").textContent=seeker.age;
+    document.getElementById("seekerRangeLab").textContent=seeker.lo+"–"+seeker.hi;
+    const oppW=seeker.sex==="m"?"women":"men", rivW=seeker.sex==="m"?"men":"women";
+    document.getElementById("seekerHint").innerHTML=
+      `Your <b>market ratio</b> = same-sex rivals ÷ available matches in your range, from PUMS single counts by single year of age. `+
+      `<b>Matches</b> = single ${oppW} aged ${seeker.lo}–${seeker.hi}. <b>Rivals</b> = single ${rivW} weighted by the empirical partner-age gap <b>K</b> `+
+      `— so ${rivW} of nearby ages chasing the same partners are counted, not just your exact age-peers. `+
+      `<b>Favorable</b> means fewer rivals than matches. The default range is the middle 50% of real ${seeker.sex==="m"?"men":"women"}'s partners at your age; drag the sliders to set your own. `+
+      `Covers 222 metros + New York + Los Angeles (not the 5 Connecticut metros or city insets).`;
+  }
+  function setSeeker(on){
+    seeker.on=on;
+    [...document.querySelectorAll("#seekerToggle button")].forEach(x=>x.setAttribute("aria-pressed",(x.dataset.s==="on")===on));
+    seekControls.style.display=on?"block":"none";
+    if(on){ econ="all"; race="all"; setEconUI(); setRaceUI(); applyKernelDefault(); seekerLabels(); }
+    update(true);
+  }
+  document.getElementById("seekerToggle").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b)return; setSeeker(b.dataset.s==="on"); });
+  document.getElementById("seekerSex").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b)return;
+    seeker.sex=b.dataset.x; [...document.querySelectorAll("#seekerSex button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.x===seeker.sex));
+    applyKernelDefault(); seekerLabels(); update(true); });
+  document.getElementById("seekerAge").addEventListener("input",e=>{ seeker.age=+e.target.value; applyKernelDefault(); seekerLabels(); update(true); });
+  function seekRange(){ let lo=+document.getElementById("seekerLo").value, hi=+document.getElementById("seekerHi").value;
+    if(lo>hi){ const t=lo; lo=hi; hi=t; } seeker.lo=lo; seeker.hi=hi; seekerLabels(); update(true); }
+  document.getElementById("seekerLo").addEventListener("input",seekRange);
+  document.getElementById("seekerHi").addEventListener("input",seekRange);
 
   update(false);
 
