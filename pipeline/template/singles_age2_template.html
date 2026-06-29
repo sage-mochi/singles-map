@@ -60,9 +60,11 @@
 
   /* flip counter */
   .counter{display:flex;align-items:center;gap:0;height:26px;border:1px solid var(--hair);overflow:hidden;min-width:240px;flex:1;border-radius:3px}
-  .counter .cm,.counter .cw{height:100%;display:flex;align-items:center;color:#fff;font-size:11.5px;font-weight:600;transition:width .5s cubic-bezier(.22,.61,.36,1);white-space:nowrap;overflow:hidden}
+  .counter .cm,.counter .cw,.counter .cu{height:100%;display:flex;align-items:center;font-size:11.5px;font-weight:600;transition:width .5s cubic-bezier(.22,.61,.36,1);white-space:nowrap;overflow:hidden}
+  .counter .cm,.counter .cw{color:#fff}
   .counter .cm{background:var(--men);justify-content:flex-start;padding-left:9px}
   .counter .cw{background:var(--women);justify-content:flex-end;padding-right:9px}
+  .counter .cu{background:#D7D5CA;color:var(--ink-soft);justify-content:center}
   .counter-wrap{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
   .counter-wrap .lab{white-space:nowrap}
 
@@ -187,8 +189,8 @@
 
   <div class="counter-wrap">
     <span class="lab">Metros leaning</span>
-    <div class="counter" id="counter" title="metros leaning male vs female">
-      <div class="cm" id="cm"></div><div class="cw" id="cw"></div>
+    <div class="counter" id="counter" title="metros leaning male vs female (middle = gap within margin of error)">
+      <div class="cm" id="cm"></div><div class="cu" id="cu"></div><div class="cw" id="cw"></div>
     </div>
   </div>
 
@@ -321,7 +323,7 @@ function start(){
       return {m:Math.sqrt(mm), w:Math.sqrt(ww)};
     }
     if(race!=="all"){ const n=x.race[RACE_KEY[race]]; return n?{m:pm(n.m_moe),w:pm(n.w_moe)}:null; }
-    return null;   // base/age view shows published counts; we don't pair those with PUMS MOE
+    return x.base ? {m:pm(x.base.m_moe), w:pm(x.base.w_moe)} : null;  // base/age view: published count, PUMS MOE
   }
   // gap is statistically indistinguishable when |men-women| < MOE of that difference
   function withinMoe(r,sel){ const e=moeOf(r,sel); return !!e && Math.abs(diffOf(r,sel))<Math.hypot(e.m,e.w); }
@@ -484,13 +486,18 @@ function start(){
   }
 
   /* counter + age UI */
-  const cm=document.getElementById("cm"), cw=document.getElementById("cw");
+  const cm=document.getElementById("cm"), cw=document.getElementById("cw"), cu=document.getElementById("cu");
   function updateCounter(){
-    let male=0,fem=0;
-    for(const r of pts){ if(!shown(r)) continue; const dd=diffOf(r,sel); if(dd>0)male++; else if(dd<0)fem++;}
-    const tot=male+fem||1;
-    cm.style.width=(100*male/tot)+"%"; cw.style.width=(100*fem/tot)+"%";
-    cm.textContent=male>10?male+" male":male; cw.textContent=fem>10?fem+" female":fem;
+    let male=0,fem=0,close=0;
+    for(const r of pts){ if(!shown(r)) continue;
+      if(withinMoe(r,sel)){ close++; continue; }   // gap not statistically distinguishable
+      const dd=diffOf(r,sel); if(dd>0)male++; else if(dd<0)fem++;
+    }
+    const tot=male+fem+close||1;
+    cm.style.width=(100*male/tot)+"%"; cu.style.width=(100*close/tot)+"%"; cw.style.width=(100*fem/tot)+"%";
+    cm.textContent=male>10?male+" male":male||"";
+    cu.textContent=close>20?close+" too close":(close>6?close:"");
+    cw.textContent=fem>10?fem+" female":fem||"";
   }
   const ageNow=document.getElementById("ageNow"), ageNowSub=document.getElementById("ageNowSub");
   const slider=document.getElementById("age");
@@ -662,7 +669,7 @@ function start(){
    <p><b>What "single" means.</b> Every unmarried adult — never-married, divorced, separated, or widowed — from table <code>B12002</code>, matching the original National Geographic definition. (Never-married only would tilt nearly every bar and circle blue, since men marry later; the divorced and widowed are what create the female surpluses at older ages.)</p>
    <p><b>What a head-count gap still can't tell you.</b> Three limits no Census table removes: it counts <b>everyone single, not everyone looking</b> — the retired widower and the active dater are one number here; it ignores <b>who's compatible</b> — sexual orientation isn't in these tables, and most people partner near their own age, so a metro's overall surplus rarely matches the pool a given person actually draws from; and it treats <b>"unmarried" as "available,"</b> though many are cohabiting or otherwise partnered. Read it as a demographic portrait, not dating odds.</p>
    <p><b>Three ways to size the circles.</b> <b>Absolute gap</b> is the original's metric — raw head-count difference, which rewards big metros. The other two normalize for size and, as a result, rank metros identically: <b>per 1,000 singles</b> expresses the gap as a share of the local single pool, while <b>men per 100 women</b> is the plain sex ratio — the most readable apples-to-apples number (100 = parity, 130 = thirty percent more men, 77 = its mirror image for women). The ratio view is sized by the log of the ratio, so an equal imbalance on either side draws an equal circle.</p>
-   <p><b>Precision.</b> Slicing into five-year bands shrinks each estimate and widens its margin of error; small-metro single bands are noisier than the all-ages view. For the PUMS-based economic and race views (and the metros they cover), hovering shows that <b>margin of error</b> — 90%, from the 80 replicate weights (band/bucket aggregates combined by root-sum-square) — and any metro whose male–female gap falls <i>within</i> its margin is faded and dashed, flagging the lean as not statistically distinguishable. The normalized views clip at the legend maximum so a few tiny, lopsided metros don't blow out the scale. The same caution applies to the ranking tables: an 8,000-single floor filters the worst noise, but the smallest qualifying metros (and the most extreme ratios, like Macon's 35–39 figure) rest on a few thousand people and carry wide error bars — the underlying counts are shown so you can weigh each row.</p>`;
+   <p><b>Precision.</b> Slicing into five-year bands shrinks each estimate and widens its margin of error; small-metro single bands are noisier than the all-ages view. Hovering any covered metro shows that <b>margin of error</b> — 90%, from the 80 PUMS replicate weights (band, bucket and all-ages aggregates combined by root-sum-square). On the base age view the displayed count is the published table while the margin is the PUMS estimate of the same figure (their own published margins are comparable); the economic and race views are PUMS throughout. Any metro whose male–female gap falls <i>within</i> its margin is faded and dashed, and is tallied in the grey <b>“too close”</b> middle of the leaning bar — flagging the lean as not statistically distinguishable. The nine areas without PUMS data (city insets, Connecticut) carry no margin. The normalized views clip at the legend maximum so a few tiny, lopsided metros don't blow out the scale. The same caution applies to the ranking tables: an 8,000-single floor filters the worst noise, but the smallest qualifying metros (and the most extreme ratios, like Macon's 35–39 figure) rest on a few thousand people and carry wide error bars — the underlying counts are shown so you can weigh each row.</p>`;
 }
 start();
 </script>
