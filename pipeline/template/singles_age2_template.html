@@ -70,6 +70,7 @@
   .metro{stroke:#fff;stroke-width:.6;cursor:pointer;transition:r .55s cubic-bezier(.22,.61,.36,1),fill .55s,fill-opacity .2s}
   .metro:hover{stroke:var(--ink);stroke-width:1.2}
   .metro.city{stroke:var(--ink);stroke-width:1;stroke-dasharray:2.5 1.6}
+  .metro.uncertain{stroke:#b9c2bf;stroke-width:.8;stroke-dasharray:2 2}
   .lbl{font-family:"Public Sans";font-size:10.5px;fill:var(--ink);font-weight:500;paint-order:stroke;stroke:var(--panel);stroke-width:2.6px;stroke-linejoin:round}
   .leader{stroke:var(--ink-soft);stroke-width:.6;fill:none;opacity:.5}
   .leghead{font-family:"Public Sans";font-size:12px;font-weight:600}
@@ -81,6 +82,7 @@
   #tip .k{color:#cdd6d4}
   #tip .verdict{margin-top:5px;font-weight:600}
   #tip .verdict.m{color:#8fc4e6} #tip .verdict.w{color:#f0a39c}
+  #tip .moe{color:#9fb0ad;font-weight:400;font-size:11px}
   #tip .citynote{margin-top:6px;padding-top:6px;border-top:1px solid #ffffff22;font-size:11px;color:#cdd6d4;font-style:italic;line-height:1.45}
 
   footer{margin-top:20px;font-size:11.5px;color:var(--ink-soft);display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
@@ -302,6 +304,28 @@ function start(){
   function singlesOf(r,sel){ const v=lensVals(r,sel); return v?v.m+v.w:0; }
   function rateOf(r,sel){ const s=singlesOf(r,sel); return s>0?1000*diffOf(r,sel)/s:0; }
 
+  /* margin of error (90%) from the PUMS replicate weights, per active lens.
+     Aggregating over bands (all-ages) or income buckets combines by root-sum-
+     square — the standard Census approximation for a sum of estimates. Single
+     band/cell views are exact. Returns {m,w} or null (no M3 for this metro). */
+  const rss=a=>Math.sqrt(a.reduce((s,v)=>s+v*v,0));
+  function moeOf(r,sel){
+    const x=m3Of(r); if(!x) return null;
+    const pm=arr=> sel<0 ? rss(arr) : arr[sel];
+    if(econ!=="all"){
+      if(econ==="emp") return {m:pm(x.emp.m_moe), w:pm(x.emp.w_moe)};
+      let mm=0,ww=0;
+      for(const b of INC_GE[econ]){ const im=x.inc[b].m_moe, iw=x.inc[b].w_moe;
+        const R=sel<0?[...Array(9).keys()]:[sel];
+        for(const i of R){ mm+=im[i]*im[i]; ww+=iw[i]*iw[i]; } }
+      return {m:Math.sqrt(mm), w:Math.sqrt(ww)};
+    }
+    if(race!=="all"){ const n=x.race[RACE_KEY[race]]; return n?{m:pm(n.m_moe),w:pm(n.w_moe)}:null; }
+    return null;   // base/age view shows published counts; we don't pair those with PUMS MOE
+  }
+  // gap is statistically indistinguishable when |men-women| < MOE of that difference
+  function withinMoe(r,sel){ const e=moeOf(r,sel); return !!e && Math.abs(diffOf(r,sel))<Math.hypot(e.m,e.w); }
+
   /* ============ NATIONAL FLIP CHART ============ */
   (function flipChart(){
     const svg=d3.select("#flip"), W=960,H=360, m={t:24,r:24,b:46,l:64};
@@ -395,14 +419,18 @@ function start(){
     const dd=diffOf(r,sel), rt=rateOf(r,sel), r100=men100(r,sel);
     const ageTxt = sel<0?"ages 20–64":"ages "+BANDS[sel];
     const grp = econ!=="all" ? ECONLAB[econ]+" · " : race!=="all" ? RLAB[race]+" · " : "";
-    const v=dd>0?`<div class="verdict m">+${fmt(Math.abs(dd))} more single men</div>`
-                :`<div class="verdict w">+${fmt(Math.abs(dd))} more single women</div>`;
+    const e=moeOf(r,sel);
+    const pm=x=> e?` <span class="moe">±${fmt(Math.round(x))}</span>`:"";
+    const within=!!e && Math.abs(dd)<Math.hypot(e.m,e.w);
+    const v = within ? `<div class="verdict" style="color:#cdd6d4">Gap within margin of error — not statistically distinguishable</div>`
+            : dd>0?`<div class="verdict m">+${fmt(Math.abs(dd))} more single men</div>`
+                  :`<div class="verdict w">+${fmt(Math.abs(dd))} more single women</div>`;
     return `<div class="hd">${r.full}</div>
-      <div class="tg"><span class="k">${grp}single men</span><b>${fmt(maleOf(r,sel))}</b></div>
-      <div class="tg"><span class="k">${grp}single women</span><b>${fmt(femOf(r,sel))}</b></div>
+      <div class="tg"><span class="k">${grp}single men</span><b>${fmt(maleOf(r,sel))}${pm(e&&e.m)}</b></div>
+      <div class="tg"><span class="k">${grp}single women</span><b>${fmt(femOf(r,sel))}${pm(e&&e.w)}</b></div>
       <div class="tg"><span class="k">Sex ratio</span><b>${r100?Math.round(r100):"—"} men / 100 women</b></div>
       <div class="tg"><span class="k">Per 1,000 singles</span><b>${(rt>0?"+":"")+rt.toFixed(1)}</b></div>
-      <div class="tg"><span class="k" style="font-size:10.5px">${ageTxt}</span></div>${v}${cnote}`;
+      <div class="tg"><span class="k" style="font-size:10.5px">${ageTxt}${e?" · ±90% MOE":""}</span></div>${v}${cnote}`;
   }
   function move(e){const pad=14;let x=e.clientX+pad,y=e.clientY+pad,tw=tip.offsetWidth,th=tip.offsetHeight;
     if(x+tw>innerWidth-8)x=e.clientX-tw-pad; if(y+th>innerHeight-8)y=e.clientY-th-pad;
@@ -467,7 +495,9 @@ function start(){
 
   function update(animate){
     const S=curScale();
-    circles.attr("fill",d=>COL(d)).attr("fill-opacity",d=>hasData(d)?.72:0);
+    circles.attr("fill",d=>COL(d))
+      .attr("fill-opacity",d=> !hasData(d)?0 : withinMoe(d,sel)?.26:.72)  // fade gaps within MOE
+      .classed("uncertain",d=>hasData(d)&&withinMoe(d,sel));
     (animate?circles.transition().duration(520):circles).attr("r",d=>S(value(d)));
     circles.sort((a,b)=>S(value(b))-S(value(a)));
     ageNow.textContent=AGE_LABELS[sel+1]; ageNowSub.textContent=SUBS[sel+1];
@@ -628,7 +658,7 @@ function start(){
    <p><b>What "single" means.</b> Every unmarried adult — never-married, divorced, separated, or widowed — from table <code>B12002</code>, matching the original National Geographic definition. (Never-married only would tilt nearly every bar and circle blue, since men marry later; the divorced and widowed are what create the female surpluses at older ages.)</p>
    <p><b>What a head-count gap still can't tell you.</b> Three limits no Census table removes: it counts <b>everyone single, not everyone looking</b> — the retired widower and the active dater are one number here; it ignores <b>who's compatible</b> — sexual orientation isn't in these tables, and most people partner near their own age, so a metro's overall surplus rarely matches the pool a given person actually draws from; and it treats <b>"unmarried" as "available,"</b> though many are cohabiting or otherwise partnered. Read it as a demographic portrait, not dating odds.</p>
    <p><b>Three ways to size the circles.</b> <b>Absolute gap</b> is the original's metric — raw head-count difference, which rewards big metros. The other two normalize for size and, as a result, rank metros identically: <b>per 1,000 singles</b> expresses the gap as a share of the local single pool, while <b>men per 100 women</b> is the plain sex ratio — the most readable apples-to-apples number (100 = parity, 130 = thirty percent more men, 77 = its mirror image for women). The ratio view is sized by the log of the ratio, so an equal imbalance on either side draws an equal circle.</p>
-   <p><b>Precision.</b> Slicing into five-year bands shrinks each estimate and widens its margin of error (not shown); small-metro single bands are noisier than the all-ages view. The normalized views clip at the legend maximum so a few tiny, lopsided metros don't blow out the scale. The same caution applies to the ranking tables: an 8,000-single floor filters the worst noise, but the smallest qualifying metros (and the most extreme ratios, like Macon's 35–39 figure) rest on a few thousand people and carry wide error bars — the underlying counts are shown so you can weigh each row.</p>`;
+   <p><b>Precision.</b> Slicing into five-year bands shrinks each estimate and widens its margin of error; small-metro single bands are noisier than the all-ages view. For the PUMS-based economic and race views (and the metros they cover), hovering shows that <b>margin of error</b> — 90%, from the 80 replicate weights (band/bucket aggregates combined by root-sum-square) — and any metro whose male–female gap falls <i>within</i> its margin is faded and dashed, flagging the lean as not statistically distinguishable. The normalized views clip at the legend maximum so a few tiny, lopsided metros don't blow out the scale. The same caution applies to the ranking tables: an 8,000-single floor filters the worst noise, but the smallest qualifying metros (and the most extreme ratios, like Macon's 35–39 figure) rest on a few thousand people and carry wide error bars — the underlying counts are shown so you can weigh each row.</p>`;
 }
 start();
 </script>
