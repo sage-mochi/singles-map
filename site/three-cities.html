@@ -1,0 +1,507 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Three Cities by Age, Sex & Race — ACS 2024</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,600&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F1F1EB;
+    --panel:#FBFBF7;
+    --ink:#1F2A2D;
+    --ink-soft:#54625F;
+    --hair:#D7D6CC;
+    --hair-soft:#E6E5DC;
+    --male:#2E6F8E;
+    --female:#B0544F;
+    --male-soft:#2E6F8E22;
+    --female-soft:#B0544F22;
+    --focus:#1F2A2D;
+    /* categorical race palette */
+    --c-white:#6E90AE;
+    --c-hisp:#E1A14A;
+    --c-asian:#4F9E8C;
+    --c-black:#B66E78;
+    --c-two:#8B82B8;
+    --c-aian:#A9A05B;
+    --c-nhpi:#7FB0A6;
+    --c-other:#ACA69C;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"Public Sans",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    line-height:1.45;
+    font-feature-settings:"tnum" 1;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:34px 22px 64px}
+
+  /* ---- header ---- */
+  header{border-bottom:1.5px solid var(--ink);padding-bottom:20px;margin-bottom:8px}
+  .eyebrow{
+    font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--ink-soft);font-weight:600;margin:0 0 10px;
+  }
+  h1{
+    font-family:"Fraunces",Georgia,serif;
+    font-weight:500;font-size:clamp(30px,5vw,52px);line-height:1.02;
+    margin:0;letter-spacing:-.01em;font-optical-sizing:auto;
+  }
+  h1 em{font-style:italic;color:var(--ink-soft)}
+  .dek{margin:14px 0 0;max-width:62ch;color:var(--ink-soft);font-size:15.5px}
+
+  /* ---- city stat strip ---- */
+  .strip{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;
+    background:var(--hair);border:1px solid var(--hair);margin:26px 0 8px}
+  .stat{background:var(--panel);padding:16px 18px}
+  .stat .cty{font-family:"Fraunces",serif;font-weight:500;font-size:19px}
+  .stat .big{font-size:26px;font-weight:600;letter-spacing:-.01em;margin-top:3px}
+  .stat .sub{font-size:12.5px;color:var(--ink-soft);margin-top:4px;display:flex;gap:14px}
+  .stat .sub b{font-weight:600;color:var(--ink)}
+  .stat .swatch{display:inline-block;width:8px;height:8px;border-radius:1px;margin-right:4px;vertical-align:baseline}
+
+  /* ---- controls ---- */
+  .controls{display:flex;flex-wrap:wrap;gap:22px 34px;align-items:flex-end;
+    margin:30px 0 10px;padding-bottom:18px;border-bottom:1px solid var(--hair)}
+  .ctl-label{font-size:11px;letter-spacing:.13em;text-transform:uppercase;
+    color:var(--ink-soft);font-weight:600;margin-bottom:8px}
+  .seg{display:inline-flex;border:1px solid var(--ink);background:var(--panel)}
+  .seg button{
+    font-family:inherit;font-size:13.5px;font-weight:500;color:var(--ink);
+    background:transparent;border:0;padding:8px 14px;cursor:pointer;
+    border-right:1px solid var(--hair);transition:background .18s,color .18s}
+  .seg button:last-child{border-right:0}
+  .seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+  .seg button:focus-visible{outline:2px solid var(--focus);outline-offset:2px;z-index:1}
+  .legend-gender{display:flex;gap:18px;align-items:center;font-size:13px;color:var(--ink-soft);margin-left:auto}
+  .legend-gender span{display:inline-flex;align-items:center;gap:7px}
+  .legend-gender i{width:13px;height:13px;border-radius:2px;display:inline-block}
+  .ghost-key i{background:transparent;border:1.4px solid var(--ink-soft)}
+
+  /* ---- pyramids ---- */
+  .pyramids{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:26px}
+  .pyr{background:var(--panel);border:1px solid var(--hair);padding:14px 12px 8px}
+  .pyr h3{font-family:"Fraunces",serif;font-weight:500;font-size:18px;margin:2px 4px 2px;
+    display:flex;justify-content:space-between;align-items:baseline}
+  .pyr h3 .ctx{font-family:"Public Sans",sans-serif;font-size:11.5px;color:var(--ink-soft);font-weight:500}
+  svg{display:block;width:100%;height:auto}
+  rect.bar{transition:x .55s cubic-bezier(.22,.61,.36,1),width .55s cubic-bezier(.22,.61,.36,1),opacity .35s ease}
+  rect.ghost{transition:x .55s cubic-bezier(.22,.61,.36,1),width .55s cubic-bezier(.22,.61,.36,1),opacity .3s ease}
+  .axis-line{stroke:var(--hair);stroke-width:1}
+  .grid-line{stroke:var(--hair-soft);stroke-width:1}
+  .center-line{stroke:var(--hair);stroke-width:1}
+  .age-lab{fill:var(--ink-soft);font-size:10px;font-family:"Public Sans",sans-serif;text-anchor:middle}
+  .axis-num{fill:var(--ink-soft);font-size:9px;font-family:"Public Sans",sans-serif;text-anchor:middle}
+  .head-m{fill:var(--male);font-size:11px;font-weight:600;text-anchor:end}
+  .head-f{fill:var(--female);font-size:11px;font-weight:600;text-anchor:start}
+  .bar:hover{filter:brightness(1.08)}
+
+  /* ---- race composition ---- */
+  .section-head{margin:54px 0 6px;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+  .section-head h2{font-family:"Fraunces",serif;font-weight:500;font-size:26px;margin:0;letter-spacing:-.01em}
+  .section-head p{margin:0;color:var(--ink-soft);font-size:14px;max-width:54ch}
+  .race-legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin:18px 0 20px}
+  .race-legend span{font-size:12.5px;color:var(--ink);display:inline-flex;align-items:center;gap:6px}
+  .race-legend i{width:11px;height:11px;border-radius:2px}
+  .comp-row{display:grid;grid-template-columns:120px 1fr;gap:14px;align-items:center;margin:13px 0}
+  .comp-row .cname{font-family:"Fraunces",serif;font-size:16px;text-align:right}
+  .comp-row .cname small{display:block;font-family:"Public Sans",sans-serif;font-size:11px;color:var(--ink-soft);font-weight:500}
+  .compbar{display:flex;height:42px;border:1px solid var(--hair);overflow:hidden}
+  .compbar .seg-c{height:100%;position:relative;transition:filter .15s;min-width:0}
+  .compbar .seg-c:hover{filter:brightness(1.07)}
+  .compbar .seg-c span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-size:11.5px;font-weight:600;color:#fff;text-shadow:0 1px 1.5px rgba(0,0,0,.28);pointer-events:none}
+
+  /* ---- tooltip ---- */
+  #tip{position:fixed;pointer-events:none;z-index:50;background:var(--ink);color:var(--paper);
+    padding:8px 11px;font-size:12px;line-height:1.5;border-radius:4px;opacity:0;
+    transition:opacity .12s;max-width:230px;box-shadow:0 6px 22px rgba(0,0,0,.18)}
+  #tip b{font-weight:600}
+  #tip .tg{display:flex;justify-content:space-between;gap:16px}
+  #tip .k{color:#cdd6d4}
+  #tip .hd{font-family:"Fraunces",serif;font-size:13px;margin-bottom:3px;
+    padding-bottom:3px;border-bottom:1px solid #ffffff22}
+
+  /* ---- footer ---- */
+  footer{margin-top:54px;padding-top:18px;border-top:1px solid var(--hair);
+    font-size:12.5px;color:var(--ink-soft);max-width:90ch}
+  footer p{margin:0 0 9px}
+  footer code{font-family:"Public Sans",monospace;background:var(--hair-soft);padding:1px 5px;border-radius:3px;font-size:11.5px}
+  footer b{color:var(--ink)}
+
+  @media (max-width:820px){
+    .strip{grid-template-columns:1fr}
+    .pyramids{grid-template-columns:1fr;max-width:440px}
+    .legend-gender{margin-left:0;width:100%}
+    .comp-row{grid-template-columns:84px 1fr}
+  }
+  @media (prefers-reduced-motion:reduce){
+    rect.bar,rect.ghost,.seg button{transition:none}
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">U.S. Census Bureau · American Community Survey · 2024 1-Year Estimates</p>
+    <h1>Three cities, by age, sex<br>&amp; <em>race</em>.</h1>
+    <p class="dek">San Francisco, Los Angeles and Seattle share a coastline and little else demographically. Filter the population pyramids by race to see how each group's age-and-sex structure sits inside the whole-city silhouette, then compare overall composition below.</p>
+  </header>
+
+  <div class="strip" id="strip"></div>
+
+  <div class="controls">
+    <div>
+      <div class="ctl-label">Race / origin filter</div>
+      <div class="seg" id="raceSeg" role="group" aria-label="Race filter"></div>
+    </div>
+    <div>
+      <div class="ctl-label">Measure</div>
+      <div class="seg" id="measureSeg" role="group" aria-label="Measure">
+        <button data-m="pct" aria-pressed="true">% of city population</button>
+        <button data-m="count" aria-pressed="false">Head count</button>
+      </div>
+    </div>
+    <div class="legend-gender">
+      <span><i style="background:var(--male)"></i>Male</span>
+      <span><i style="background:var(--female)"></i>Female</span>
+      <span class="ghost-key" id="ghostKey" style="display:none"><i></i>Whole-city outline</span>
+    </div>
+  </div>
+
+  <div class="pyramids" id="pyramids"></div>
+
+  <div class="section-head">
+    <h2>Overall composition</h2>
+    <p>Share of total population by race and Hispanic origin, drawn from table B03002. Categories are mutually exclusive and sum to 100%.</p>
+  </div>
+  <div class="race-legend" id="raceLegend"></div>
+  <div id="composition"></div>
+
+  <footer id="foot"></footer>
+</div>
+
+<div id="tip" role="status" aria-live="polite"></div>
+
+<script>
+const DATA = {"cities":{"San Francisco":{"total":827526,"male":425910,"female":401616,"pyramids":{"All":[{"age":"0-4","male":16865,"female":15517},{"age":"5-9","male":12268,"female":13387},{"age":"10-14","male":18378,"female":16044},{"age":"15-17","male":9996,"female":8622},{"age":"18-19","male":6360,"female":7891},{"age":"20-24","male":21421,"female":21381},{"age":"25-29","male":39273,"female":37616},{"age":"30-34","male":45982,"female":40675},{"age":"35-44","male":75121,"female":63120},{"age":"45-54","male":56144,"female":49604},{"age":"55-64","male":53351,"female":45681},{"age":"65-74","male":41384,"female":42196},{"age":"75-84","male":21091,"female":27564},{"age":"85+","male":8276,"female":12318}],"White":[{"age":"0-4","male":5785,"female":5372},{"age":"5-9","male":3271,"female":4114},{"age":"10-14","male":5378,"female":4006},{"age":"15-17","male":2348,"female":2344},{"age":"18-19","male":2075,"female":2922},{"age":"20-24","male":7363,"female":6806},{"age":"25-29","male":16865,"female":14678},{"age":"30-34","male":21104,"female":16439},{"age":"35-44","male":32598,"female":24320},{"age":"45-54","male":23986,"female":17958},{"age":"55-64","male":23390,"female":15688},{"age":"65-74","male":17247,"female":13614},{"age":"75-84","male":9934,"female":10511},{"age":"85+","male":2495,"female":4191}],"Black":[{"age":"0-4","male":538,"female":646},{"age":"5-9","male":573,"female":110},{"age":"10-14","male":1245,"female":2220},{"age":"15-17","male":680,"female":617},{"age":"18-19","male":637,"female":698},{"age":"20-24","male":1143,"female":1438},{"age":"25-29","male":1217,"female":1742},{"age":"30-34","male":1984,"female":1674},{"age":"35-44","male":3289,"female":3131},{"age":"45-54","male":3030,"female":2150},{"age":"55-64","male":2773,"female":1983},{"age":"65-74","male":2981,"female":1974},{"age":"75-84","male":560,"female":1454},{"age":"85+","male":116,"female":697}],"Asian":[{"age":"0-4","male":3734,"female":2950},{"age":"5-9","male":3471,"female":3156},{"age":"10-14","male":5443,"female":4202},{"age":"15-17","male":3203,"female":2880},{"age":"18-19","male":1905,"female":2135},{"age":"20-24","male":7744,"female":7059},{"age":"25-29","male":13011,"female":12862},{"age":"30-34","male":14089,"female":14120},{"age":"35-44","male":21836,"female":23376},{"age":"45-54","male":17107,"female":20564},{"age":"55-64","male":18077,"female":20216},{"age":"65-74","male":16879,"female":20744},{"age":"75-84","male":8627,"female":12833},{"age":"85+","male":4761,"female":6245}],"Two or more":[{"age":"0-4","male":4708,"female":5686},{"age":"5-9","male":3241,"female":3341},{"age":"10-14","male":3184,"female":4196},{"age":"15-17","male":2547,"female":1681},{"age":"18-19","male":984,"female":1421},{"age":"20-24","male":3420,"female":3755},{"age":"25-29","male":4462,"female":4957},{"age":"30-34","male":4539,"female":4286},{"age":"35-44","male":8721,"female":7743},{"age":"45-54","male":6662,"female":3651},{"age":"55-64","male":4912,"female":4650},{"age":"65-74","male":2340,"female":3726},{"age":"75-84","male":978,"female":1196},{"age":"85+","male":521,"female":386}]},"raceEth":{"White":300136,"Black":38793,"AIAN":1382,"Asian":290477,"NHPI":2355,"Other":6417,"Two+":49074,"Hispanic":138892,"Total":827526}},"Los Angeles":{"total":3878718,"male":1922307,"female":1956411,"pyramids":{"All":[{"age":"0-4","male":91560,"female":91834},{"age":"5-9","male":95829,"female":95833},{"age":"10-14","male":107998,"female":100735},{"age":"15-17","male":66929,"female":66737},{"age":"18-19","male":50016,"female":51605},{"age":"20-24","male":131313,"female":136720},{"age":"25-29","male":164033,"female":170771},{"age":"30-34","male":180609,"female":172226},{"age":"35-44","male":307440,"female":280935},{"age":"45-54","male":248514,"female":244139},{"age":"55-64","male":222822,"female":219401},{"age":"65-74","male":158087,"female":175040},{"age":"75-84","male":69550,"female":104967},{"age":"85+","male":27607,"female":45468}],"White":[{"age":"0-4","male":25440,"female":23483},{"age":"5-9","male":25363,"female":26370},{"age":"10-14","male":24494,"female":24797},{"age":"15-17","male":15935,"female":16159},{"age":"18-19","male":14075,"female":14465},{"age":"20-24","male":36293,"female":40146},{"age":"25-29","male":49716,"female":53153},{"age":"30-34","male":59326,"female":59179},{"age":"35-44","male":110876,"female":96071},{"age":"45-54","male":80640,"female":72347},{"age":"55-64","male":82254,"female":72613},{"age":"65-74","male":67816,"female":64046},{"age":"75-84","male":33583,"female":47551},{"age":"85+","male":12553,"female":20542}],"Black":[{"age":"0-4","male":6773,"female":6639},{"age":"5-9","male":6523,"female":7061},{"age":"10-14","male":5911,"female":7601},{"age":"15-17","male":4666,"female":4427},{"age":"18-19","male":2819,"female":4859},{"age":"20-24","male":9146,"female":11718},{"age":"25-29","male":11408,"female":15784},{"age":"30-34","male":15737,"female":14593},{"age":"35-44","male":26000,"female":22099},{"age":"45-54","male":18906,"female":20206},{"age":"55-64","male":20270,"female":20944},{"age":"65-74","male":14983,"female":16851},{"age":"75-84","male":6106,"female":8474},{"age":"85+","male":1801,"female":4030}],"Asian":[{"age":"0-4","male":6528,"female":6472},{"age":"5-9","male":8007,"female":5207},{"age":"10-14","male":8276,"female":6826},{"age":"15-17","male":5354,"female":5105},{"age":"18-19","male":6547,"female":7893},{"age":"20-24","male":18804,"female":16856},{"age":"25-29","male":18070,"female":22254},{"age":"30-34","male":20766,"female":24935},{"age":"35-44","male":32844,"female":39189},{"age":"45-54","male":27029,"female":36400},{"age":"55-64","male":26128,"female":32799},{"age":"65-74","male":22128,"female":28362},{"age":"75-84","male":11616,"female":20220},{"age":"85+","male":6416,"female":9760}],"Two or more":[{"age":"0-4","male":25851,"female":26058},{"age":"5-9","male":24893,"female":24753},{"age":"10-14","male":32206,"female":23967},{"age":"15-17","male":16810,"female":17325},{"age":"18-19","male":11995,"female":10075},{"age":"20-24","male":27584,"female":27860},{"age":"25-29","male":33285,"female":35537},{"age":"30-34","male":36967,"female":29024},{"age":"35-44","male":57559,"female":48873},{"age":"45-54","male":50087,"female":49707},{"age":"55-64","male":36465,"female":38049},{"age":"65-74","male":23232,"female":28521},{"age":"75-84","male":7890,"female":14272},{"age":"85+","male":3009,"female":4597}]},"raceEth":{"White":1078985,"Black":305964,"AIAN":5041,"Asian":471242,"NHPI":6457,"Other":24463,"Two+":155374,"Hispanic":1831192,"Total":3878718}},"Seattle":{"total":780992,"male":394895,"female":386097,"pyramids":{"All":[{"age":"0-4","male":17865,"female":15142},{"age":"5-9","male":14704,"female":16501},{"age":"10-14","male":13844,"female":14408},{"age":"15-17","male":9091,"female":7964},{"age":"18-19","male":9243,"female":8218},{"age":"20-24","male":29106,"female":30159},{"age":"25-29","male":45384,"female":47886},{"age":"30-34","male":53520,"female":50118},{"age":"35-44","male":76344,"female":61972},{"age":"45-54","male":42115,"female":42002},{"age":"55-64","male":38336,"female":38002},{"age":"65-74","male":26265,"female":29726},{"age":"75-84","male":14365,"female":16416},{"age":"85+","male":4713,"female":7583}],"White":[{"age":"0-4","male":7992,"female":7473},{"age":"5-9","male":7447,"female":8182},{"age":"10-14","male":7186,"female":6990},{"age":"15-17","male":5225,"female":5012},{"age":"18-19","male":3764,"female":4115},{"age":"20-24","male":13671,"female":14982},{"age":"25-29","male":22412,"female":22417},{"age":"30-34","male":28602,"female":25527},{"age":"35-44","male":45153,"female":38353},{"age":"45-54","male":30298,"female":27733},{"age":"55-64","male":27718,"female":26218},{"age":"65-74","male":19558,"female":20825},{"age":"75-84","male":10301,"female":11194},{"age":"85+","male":3301,"female":5803}],"Black":[{"age":"0-4","male":1602,"female":632},{"age":"5-9","male":1445,"female":2765},{"age":"10-14","male":745,"female":2439},{"age":"15-17","male":129,"female":346},{"age":"18-19","male":669,"female":212},{"age":"20-24","male":1357,"female":1489},{"age":"25-29","male":2607,"female":2929},{"age":"30-34","male":4494,"female":3726},{"age":"35-44","male":5301,"female":4173},{"age":"45-54","male":1912,"female":2410},{"age":"55-64","male":2535,"female":2940},{"age":"65-74","male":1894,"female":2517},{"age":"75-84","male":1087,"female":717},{"age":"85+","male":333,"female":331}],"Asian":[{"age":"0-4","male":2752,"female":1286},{"age":"5-9","male":1137,"female":715},{"age":"10-14","male":1122,"female":1233},{"age":"15-17","male":694,"female":711},{"age":"18-19","male":2534,"female":2223},{"age":"20-24","male":8935,"female":7612},{"age":"25-29","male":14061,"female":13404},{"age":"30-34","male":13156,"female":12498},{"age":"35-44","male":11872,"female":9442},{"age":"45-54","male":4252,"female":6035},{"age":"55-64","male":3949,"female":5268},{"age":"65-74","male":3285,"female":4919},{"age":"75-84","male":2045,"female":3273},{"age":"85+","male":846,"female":865}],"Two or more":[{"age":"0-4","male":4662,"female":4893},{"age":"5-9","male":3669,"female":4032},{"age":"10-14","male":3896,"female":3198},{"age":"15-17","male":2813,"female":1709},{"age":"18-19","male":1979,"female":995},{"age":"20-24","male":3126,"female":4488},{"age":"25-29","male":5291,"female":6616},{"age":"30-34","male":5155,"female":6816},{"age":"35-44","male":10197,"female":6160},{"age":"45-54","male":4673,"female":4840},{"age":"55-64","male":3387,"female":2582},{"age":"65-74","male":943,"female":1158},{"age":"75-84","male":675,"female":945},{"age":"85+","male":12,"female":503}]},"raceEth":{"White":444572,"Black":52526,"AIAN":2084,"Asian":139140,"NHPI":2020,"Other":3586,"Two+":65970,"Hispanic":71094,"Total":780992}}},"bands":["0-4","5-9","10-14","15-17","18-19","20-24","25-29","30-34","35-44","45-54","55-64","65-74","75-84","85+"],"raceGroups":["All","White","Black","Asian","Two or more"]};
+
+const CITIES = ["San Francisco","Los Angeles","Seattle"];
+const BANDS = DATA.bands;
+const MALE = getComputedStyle(document.documentElement).getPropertyValue('--male').trim();
+const FEMALE = getComputedStyle(document.documentElement).getPropertyValue('--female').trim();
+
+let race = "All";
+let measure = "pct"; // 'pct' | 'count'
+
+const fmt = n => n.toLocaleString("en-US");
+const pct1 = x => (x*100).toFixed(1) + "%";
+
+/* ---------- geometry ---------- */
+const W = 340, H = 470, padT = 34, padB = 30, gutter = 50;
+const plotH = H - padT - padB;
+const bandH = plotH / BANDS.length;
+const half = (W - gutter) / 2;
+const cxL = half, cxR = half + gutter;
+const barMaxPx = half - 6;
+const NS = "http://www.w3.org/2000/svg";
+
+function el(tag, attrs){
+  const e = document.createElementNS(NS, tag);
+  for(const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+
+const refs = {}; // refs[city][bandIndex] = {mS,fS,mG,fG}
+
+function axisMax(){
+  let m = 0;
+  for(const c of CITIES){
+    const all = DATA.cities[c].pyramids["All"];
+    const tot = DATA.cities[c].total;
+    for(const b of all){
+      const mv = measure==="pct" ? b.male/tot : b.male;
+      const fv = measure==="pct" ? b.female/tot : b.female;
+      if(mv>m) m=mv; if(fv>m) m=fv;
+    }
+  }
+  return m;
+}
+
+function buildPyramid(city){
+  const svg = el("svg", {viewBox:`0 0 ${W} ${H}`, role:"img",
+    "aria-label":`Population pyramid for ${city}`});
+
+  // gridlines + axis numbers (set later by update via data attr; draw static frame here)
+  const grid = el("g", {});
+  svg.appendChild(grid);
+
+  // center divider
+  svg.appendChild(el("line",{class:"center-line",x1:cxL,y1:padT-4,x2:cxL,y2:H-padB}));
+  svg.appendChild(el("line",{class:"center-line",x1:cxR,y1:padT-4,x2:cxR,y2:H-padB}));
+  // baseline
+  svg.appendChild(el("line",{class:"axis-line",x1:6,y1:H-padB,x2:W-6,y2:H-padB}));
+
+  // M / F headers
+  const hm = el("text",{class:"head-m",x:cxL-4,y:padT-14}); hm.textContent="◄ Male";
+  const hf = el("text",{class:"head-f",x:cxR+4,y:padT-14}); hf.textContent="Female ►";
+  svg.appendChild(hm); svg.appendChild(hf);
+
+  refs[city] = {};
+  for(let bi=0; bi<BANDS.length; bi++){
+    const r = (BANDS.length-1) - bi;       // row from top; 85+ at top
+    const y = padT + r*bandH;
+    const bh = bandH*0.64;
+    const by = y + (bandH-bh)/2;
+
+    // ghost outlines (whole-city)
+    const mG = el("rect",{class:"ghost",x:cxL,y:by,width:0,height:bh,
+      fill:"none",stroke:"var(--ink-soft)","stroke-width":1.1,opacity:0,rx:0.5});
+    const fG = el("rect",{class:"ghost",x:cxR,y:by,width:0,height:bh,
+      fill:"none",stroke:"var(--ink-soft)","stroke-width":1.1,opacity:0,rx:0.5});
+    // solid bars
+    const mS = el("rect",{class:"bar",x:cxL,y:by,width:0,height:bh,fill:MALE,rx:0.5,
+      tabindex:0, role:"img"});
+    const fS = el("rect",{class:"bar",x:cxR,y:by,width:0,height:bh,fill:FEMALE,rx:0.5,
+      tabindex:0, role:"img"});
+
+    svg.appendChild(mG); svg.appendChild(fG);
+    svg.appendChild(mS); svg.appendChild(fS);
+
+    // age label
+    const lab = el("text",{class:"age-lab",x:cxL+gutter/2,y:by+bh/2+3.2});
+    lab.textContent = BANDS[bi];
+    svg.appendChild(lab);
+
+    // hover wiring
+    wireHover(mS, city, bi, "male");
+    wireHover(fS, city, bi, "female");
+
+    refs[city][bi] = {mS,fS,mG,fG,by,bh};
+  }
+
+  // axis numbers placeholder group
+  const anum = el("g",{class:"axisnums"});
+  svg.appendChild(anum);
+  refs[city].grid = grid; refs[city].anum = anum;
+  return svg;
+}
+
+function drawAxis(city){
+  const max = axisMax();
+  const grid = refs[city].grid, anum = refs[city].anum;
+  grid.innerHTML = ""; anum.innerHTML = "";
+  const ticks = measure==="pct" ? [0.25,0.5,0.75,1] : [0.25,0.5,0.75,1];
+  for(const t of ticks){
+    const dx = t*barMaxPx;
+    // left & right gridlines
+    grid.appendChild(el("line",{class:"grid-line",x1:cxL-dx,y1:padT,x2:cxL-dx,y2:H-padB}));
+    grid.appendChild(el("line",{class:"grid-line",x1:cxR+dx,y1:padT,x2:cxR+dx,y2:H-padB}));
+    const val = max*t;
+    const labTxt = measure==="pct" ? (val*100).toFixed(val<0.1?1:0)+"%"
+                                   : (val>=1000? Math.round(val/1000)+"k" : Math.round(val));
+    const tl = el("text",{class:"axis-num",x:cxL-dx,y:H-padB+13}); tl.textContent=labTxt;
+    const tr = el("text",{class:"axis-num",x:cxR+dx,y:H-padB+13}); tr.textContent=labTxt;
+    anum.appendChild(tl); anum.appendChild(tr);
+  }
+}
+
+function updatePyramid(city){
+  const max = axisMax();
+  const tot = DATA.cities[city].total;
+  const solid = DATA.cities[city].pyramids[race];
+  const all = DATA.cities[city].pyramids["All"];
+  const showGhost = race !== "All";
+  const scale = v => Math.max(0, (v/max)*barMaxPx);
+
+  for(let bi=0; bi<BANDS.length; bi++){
+    const R = refs[city][bi];
+    const sm = solid[bi].male, sf = solid[bi].female;
+    const am = all[bi].male, af = all[bi].female;
+    const smv = measure==="pct" ? sm/tot : sm;
+    const sfv = measure==="pct" ? sf/tot : sf;
+    const amv = measure==="pct" ? am/tot : am;
+    const afv = measure==="pct" ? af/tot : af;
+
+    const lm = scale(smv), lf = scale(sfv);
+    const lgm = scale(amv), lgf = scale(afv);
+
+    R.mS.style.x = (cxL - lm)+"px"; R.mS.style.width = lm+"px";
+    R.fS.style.x = cxR+"px";        R.fS.style.width = lf+"px";
+
+    R.mG.style.x = (cxL - lgm)+"px"; R.mG.style.width = lgm+"px";
+    R.fG.style.x = cxR+"px";         R.fG.style.width = lgf+"px";
+    R.mG.style.opacity = showGhost ? 1 : 0;
+    R.fG.style.opacity = showGhost ? 1 : 0;
+  }
+  drawAxis(city);
+}
+
+/* ---------- tooltip ---------- */
+const tip = document.getElementById("tip");
+function wireHover(rect, city, bi, sex){
+  const move = e => {
+    const tot = DATA.cities[city].total;
+    const solid = DATA.cities[city].pyramids[race][bi];
+    const all = DATA.cities[city].pyramids["All"][bi];
+    const sv = solid[sex], av = all[sex];
+    const grp = race==="All" ? "All residents" : race;
+    let html = `<div class="hd">${city} &middot; ${BANDS[bi]}</div>`;
+    html += `<div class="tg"><span class="k">${sex[0].toUpperCase()+sex.slice(1)}, ${grp}</span><b>${fmt(sv)}</b></div>`;
+    html += `<div class="tg"><span class="k">Share of city</span><b>${pct1(sv/tot)}</b></div>`;
+    if(race!=="All"){
+      const share = av>0 ? sv/av : 0;
+      html += `<div class="tg"><span class="k">Of all ${sex}s this age</span><b>${pct1(share)}</b></div>`;
+    }
+    tip.innerHTML = html;
+    tip.style.opacity = 1;
+    const pad=14; let x=e.clientX+pad, y=e.clientY+pad;
+    const tw=tip.offsetWidth, th=tip.offsetHeight;
+    if(x+tw>innerWidth-8) x=e.clientX-tw-pad;
+    if(y+th>innerHeight-8) y=e.clientY-th-pad;
+    tip.style.left=x+"px"; tip.style.top=y+"px";
+  };
+  rect.addEventListener("mousemove", move);
+  rect.addEventListener("mouseenter", move);
+  rect.addEventListener("focus", e=>{
+    const b=rect.getBoundingClientRect();
+    move({clientX:b.left+b.width/2, clientY:b.top});
+  });
+  const hide=()=>{tip.style.opacity=0;};
+  rect.addEventListener("mouseleave", hide);
+  rect.addEventListener("blur", hide);
+}
+
+/* ---------- stat strip ---------- */
+function renderStrip(){
+  const s = document.getElementById("strip");
+  s.innerHTML = "";
+  for(const c of CITIES){
+    const d = DATA.cities[c];
+    const mp = (d.male/d.total*100).toFixed(0);
+    const fp = (d.female/d.total*100).toFixed(0);
+    const div = document.createElement("div");
+    div.className="stat";
+    div.innerHTML = `<div class="cty">${c}</div>
+      <div class="big">${fmt(d.total)}</div>
+      <div class="sub">
+        <span><span class="swatch" style="background:var(--male)"></span>Male <b>${mp}%</b></span>
+        <span><span class="swatch" style="background:var(--female)"></span>Female <b>${fp}%</b></span>
+      </div>`;
+    s.appendChild(div);
+  }
+}
+
+/* ---------- controls ---------- */
+function renderRaceSeg(){
+  const seg = document.getElementById("raceSeg");
+  seg.innerHTML="";
+  for(const g of DATA.raceGroups){
+    const b=document.createElement("button");
+    b.textContent = g==="All" ? "All races" : g;
+    b.setAttribute("aria-pressed", g===race);
+    b.onclick=()=>{ race=g; syncControls(); render(); };
+    seg.appendChild(b);
+  }
+}
+function syncControls(){
+  [...document.querySelectorAll("#raceSeg button")].forEach((b,i)=>
+    b.setAttribute("aria-pressed", DATA.raceGroups[i]===race));
+  [...document.querySelectorAll("#measureSeg button")].forEach(b=>
+    b.setAttribute("aria-pressed", b.dataset.m===measure));
+  document.getElementById("ghostKey").style.display = race==="All" ? "none" : "inline-flex";
+}
+document.getElementById("measureSeg").addEventListener("click", e=>{
+  const b=e.target.closest("button"); if(!b) return;
+  measure=b.dataset.m; syncControls(); render();
+});
+
+/* ---------- composition ---------- */
+const RACE_CATS = [
+  ["White","--c-white","White (non-Hisp.)"],
+  ["Hispanic","--c-hisp","Hispanic / Latino"],
+  ["Asian","--c-asian","Asian (non-Hisp.)"],
+  ["Black","--c-black","Black (non-Hisp.)"],
+  ["Two+","--c-two","Two or more"],
+  ["AIAN","--c-aian","Amer. Indian / AK Native"],
+  ["NHPI","--c-nhpi","Nat. Hawaiian / Pac. Isl."],
+  ["Other","--c-other","Some other race"],
+];
+function renderComposition(){
+  const leg=document.getElementById("raceLegend");
+  leg.innerHTML="";
+  for(const [k,v,label] of RACE_CATS){
+    const s=document.createElement("span");
+    s.innerHTML=`<i style="background:var(${v})"></i>${label}`;
+    leg.appendChild(s);
+  }
+  const wrap=document.getElementById("composition");
+  wrap.innerHTML="";
+  for(const c of CITIES){
+    const re=DATA.cities[c].raceEth;
+    const tot=re.Total;
+    const row=document.createElement("div");
+    row.className="comp-row";
+    let bars="";
+    for(const [k,v] of RACE_CATS){
+      const val=re[k], share=val/tot;
+      const showLab = share>=0.07;
+      bars += `<div class="seg-c" style="width:${(share*100).toFixed(3)}%;background:var(${v})"
+        data-c="${c}" data-k="${k}" data-val="${val}" data-share="${share}">
+        ${showLab?`<span>${(share*100).toFixed(0)}%</span>`:""}</div>`;
+    }
+    row.innerHTML=`<div class="cname">${c}<small>${fmt(tot)} total</small></div>
+      <div class="compbar">${bars}</div>`;
+    wrap.appendChild(row);
+  }
+  // tooltip for composition
+  wrap.querySelectorAll(".seg-c").forEach(seg=>{
+    const move=e=>{
+      const label=RACE_CATS.find(r=>r[0]===seg.dataset.k)[2];
+      tip.innerHTML=`<div class="hd">${seg.dataset.c}</div>
+        <div class="tg"><span class="k">${label}</span><b>${fmt(+seg.dataset.val)}</b></div>
+        <div class="tg"><span class="k">Share</span><b>${pct1(+seg.dataset.share)}</b></div>`;
+      tip.style.opacity=1;
+      const pad=14; let x=e.clientX+pad,y=e.clientY+pad;
+      if(x+tip.offsetWidth>innerWidth-8) x=e.clientX-tip.offsetWidth-pad;
+      tip.style.left=x+"px"; tip.style.top=y+"px";
+    };
+    seg.addEventListener("mousemove",move);
+    seg.addEventListener("mouseleave",()=>tip.style.opacity=0);
+  });
+}
+
+/* ---------- footer ---------- */
+function renderFooter(){
+  document.getElementById("foot").innerHTML = `
+   <p><b>Source.</b> U.S. Census Bureau, American Community Survey 2024 1-Year Estimates, pulled live from the Census Data API on ${new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"})}. Geographies: San Francisco (place <code>06/67000</code>), Los Angeles (<code>06/44000</code>), Seattle (<code>53/63000</code>).</p>
+   <p><b>Tables.</b> Pyramids draw on <code>B01001</code> (sex by age, all residents) and <code>B01001A/B/D/G</code> (sex by age for White, Black, Asian, and Two-or-more-races alone). Composition uses <code>B03002</code> (Hispanic origin by race).</p>
+   <p><b>A definitional note worth knowing.</b> The pyramid race filters use the Census "<i>race alone</i>" tables, which <i>include</i> people who are also Hispanic. The composition bars below use mutually-exclusive non-Hispanic categories plus a single Hispanic group. So "Asian" in the filter and "Asian (non-Hisp.)" in the bars are counting slightly different populations — that's a property of the source tables, not an error.</p>
+   <p><b>Precision.</b> 1-year estimates carry sampling error that the API also returns as margins of error (not shown here). Treat small bars — e.g. a few hundred people in a single age-sex-race cell — as approximate. Age bands are harmonized to the coarser brackets the race tables provide so the filter stays consistent.</p>`;
+}
+
+/* ---------- init ---------- */
+function render(){ for(const c of CITIES) updatePyramid(c); }
+
+function init(){
+  renderStrip();
+  renderRaceSeg();
+  const pc=document.getElementById("pyramids");
+  for(const c of CITIES){
+    const card=document.createElement("div");
+    card.className="pyr";
+    card.innerHTML=`<h3>${c}<span class="ctx" data-ctx="${c}"></span></h3>`;
+    const svg=buildPyramid(c);
+    card.appendChild(svg);
+    pc.appendChild(card);
+  }
+  renderComposition();
+  renderFooter();
+  syncControls();
+  // start at zero then animate to first state
+  requestAnimationFrame(()=>requestAnimationFrame(render));
+}
+init();
+</script>

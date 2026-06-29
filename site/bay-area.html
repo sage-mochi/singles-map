@@ -1,0 +1,389 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Bay Area by Age, Sex &amp; Race — ACS 2024</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F1F1EB; --panel:#FBFBF7; --ink:#1F2A2D; --ink-soft:#54625F;
+    --hair:#D7D6CC; --hair-soft:#E6E5DC;
+    --male:#2E6F8E; --female:#B0544F; --focus:#1F2A2D;
+    --c-white:#6E90AE; --c-hisp:#E1A14A; --c-asian:#4F9E8C; --c-black:#B66E78;
+    --c-two:#8B82B8; --c-aian:#A9A05B; --c-nhpi:#7FB0A6; --c-other:#ACA69C;
+  }
+  *{box-sizing:border-box} html,body{margin:0}
+  body{background:var(--paper);color:var(--ink);font-family:"Public Sans",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;line-height:1.45;font-feature-settings:"tnum" 1}
+  .wrap{max-width:1180px;margin:0 auto;padding:34px 22px 64px}
+
+  header{border-bottom:1.5px solid var(--ink);padding-bottom:20px}
+  .eyebrow{font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-soft);font-weight:600;margin:0 0 10px}
+  h1{font-family:"Fraunces",Georgia,serif;font-weight:500;font-size:clamp(30px,5vw,54px);line-height:1.02;margin:0;letter-spacing:-.01em}
+  h1 em{font-style:italic;color:var(--ink-soft)}
+  .dek{margin:14px 0 0;max-width:64ch;color:var(--ink-soft);font-size:15.5px}
+
+  /* hero stat row */
+  .heroline{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 22px;margin:24px 0 4px}
+  .heroline .num{font-family:"Fraunces",serif;font-weight:500;font-size:44px;letter-spacing:-.01em;line-height:1}
+  .heroline .num small{font-size:15px;color:var(--ink-soft);font-family:"Public Sans";font-weight:500;margin-left:6px}
+  .heroline .split{font-size:13.5px;color:var(--ink-soft);display:flex;gap:16px}
+  .heroline .split b{color:var(--ink);font-weight:600}
+  .heroline .swatch{display:inline-block;width:8px;height:8px;border-radius:1px;margin-right:5px}
+
+  /* controls */
+  .controls{display:flex;flex-wrap:wrap;gap:22px 34px;align-items:flex-end;margin:24px 0 4px;padding-bottom:18px;border-bottom:1px solid var(--hair)}
+  .ctl-label{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-soft);font-weight:600;margin-bottom:8px}
+  .seg{display:inline-flex;border:1px solid var(--ink);background:var(--panel)}
+  .seg button{font-family:inherit;font-size:13.5px;font-weight:500;color:var(--ink);background:transparent;border:0;padding:8px 14px;cursor:pointer;border-right:1px solid var(--hair);transition:background .18s,color .18s}
+  .seg button:last-child{border-right:0}
+  .seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+  .seg button:focus-visible{outline:2px solid var(--focus);outline-offset:2px;z-index:1}
+  .legend-gender{display:flex;gap:18px;align-items:center;font-size:13px;color:var(--ink-soft);margin-left:auto}
+  .legend-gender span{display:inline-flex;align-items:center;gap:7px}
+  .legend-gender i{width:13px;height:13px;border-radius:2px;display:inline-block}
+  .ghost-key i{background:transparent;border:1.4px solid var(--ink-soft)}
+
+  /* hero pyramid */
+  .hero-pyr{display:grid;grid-template-columns:1.15fr .85fr;gap:30px;align-items:center;
+    margin:26px 0 8px;background:var(--panel);border:1px solid var(--hair);padding:22px 24px}
+  .hero-pyr .svgwrap{max-width:520px;margin:0 auto;width:100%}
+  .hero-note h2{font-family:"Fraunces",serif;font-weight:500;font-size:24px;margin:0 0 10px;letter-spacing:-.01em}
+  .hero-note p{margin:0 0 12px;color:var(--ink-soft);font-size:14.5px}
+  .hero-note .pill{display:inline-block;font-size:12px;background:var(--hair-soft);border:1px solid var(--hair);
+    padding:3px 9px;border-radius:20px;margin:2px 4px 2px 0;color:var(--ink)}
+
+  svg{display:block;width:100%;height:auto}
+  rect.bar{transition:x .55s cubic-bezier(.22,.61,.36,1),width .55s cubic-bezier(.22,.61,.36,1),opacity .35s}
+  rect.ghost{transition:x .55s cubic-bezier(.22,.61,.36,1),width .55s cubic-bezier(.22,.61,.36,1),opacity .3s}
+  .grid-line{stroke:var(--hair-soft);stroke-width:1}
+  .center-line{stroke:var(--hair);stroke-width:1}
+  .axis-line{stroke:var(--hair);stroke-width:1}
+  .age-lab{fill:var(--ink-soft);font-size:10px;font-family:"Public Sans";text-anchor:middle}
+  .axis-num{fill:var(--ink-soft);font-size:9px;font-family:"Public Sans";text-anchor:middle}
+  .head-m{fill:var(--male);font-size:11px;font-weight:600;text-anchor:end}
+  .head-f{fill:var(--female);font-size:11px;font-weight:600;text-anchor:start}
+  .bar:hover{filter:brightness(1.08)}
+
+  /* county small multiples */
+  .section-head{margin:54px 0 6px;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+  .section-head h2{font-family:"Fraunces",serif;font-weight:500;font-size:26px;margin:0;letter-spacing:-.01em}
+  .section-head p{margin:0;color:var(--ink-soft);font-size:14px;max-width:58ch}
+  .counties{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:24px}
+  .cty-card{background:var(--panel);border:1px solid var(--hair);padding:12px 10px 6px}
+  .cty-card h3{font-family:"Fraunces",serif;font-weight:500;font-size:16px;margin:2px 4px 0;display:flex;justify-content:space-between;align-items:baseline}
+  .cty-card h3 .pop{font-family:"Public Sans";font-size:11px;color:var(--ink-soft);font-weight:500}
+
+  /* composition */
+  .race-legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin:18px 0 20px}
+  .race-legend span{font-size:12.5px;color:var(--ink);display:inline-flex;align-items:center;gap:6px}
+  .race-legend i{width:11px;height:11px;border-radius:2px}
+  .comp-row{display:grid;grid-template-columns:128px 1fr;gap:14px;align-items:center;margin:11px 0}
+  .comp-row.region .cname{font-size:17px}
+  .comp-row.region .compbar{height:46px}
+  .comp-row .cname{font-family:"Fraunces",serif;font-size:15px;text-align:right}
+  .comp-row .cname small{display:block;font-family:"Public Sans";font-size:11px;color:var(--ink-soft);font-weight:500}
+  .compbar{display:flex;height:34px;border:1px solid var(--hair);overflow:hidden}
+  .compbar .seg-c{height:100%;position:relative;transition:filter .15s;min-width:0}
+  .compbar .seg-c:hover{filter:brightness(1.07)}
+  .compbar .seg-c span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;text-shadow:0 1px 1.5px rgba(0,0,0,.28);pointer-events:none}
+  .comp-divider{height:1px;background:var(--hair);margin:16px 0}
+
+  #tip{position:fixed;pointer-events:none;z-index:50;background:var(--ink);color:var(--paper);padding:8px 11px;font-size:12px;line-height:1.5;border-radius:4px;opacity:0;transition:opacity .12s;max-width:240px;box-shadow:0 6px 22px rgba(0,0,0,.18)}
+  #tip .hd{font-family:"Fraunces",serif;font-size:13px;margin-bottom:3px;padding-bottom:3px;border-bottom:1px solid #ffffff22}
+  #tip .tg{display:flex;justify-content:space-between;gap:16px}
+  #tip .k{color:#cdd6d4}
+
+  footer{margin-top:54px;padding-top:18px;border-top:1px solid var(--hair);font-size:12.5px;color:var(--ink-soft);max-width:92ch}
+  footer p{margin:0 0 9px} footer b{color:var(--ink)}
+  footer code{background:var(--hair-soft);padding:1px 5px;border-radius:3px;font-size:11.5px}
+
+  @media (max-width:900px){
+    .hero-pyr{grid-template-columns:1fr}
+    .counties{grid-template-columns:repeat(2,1fr)}
+  }
+  @media (max-width:600px){
+    .counties{grid-template-columns:1fr;max-width:420px}
+    .legend-gender{margin-left:0;width:100%}
+    .comp-row{grid-template-columns:96px 1fr}
+  }
+  @media (prefers-reduced-motion:reduce){rect.bar,rect.ghost,.seg button{transition:none}}
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">U.S. Census Bureau · American Community Survey · 2024 1-Year Estimates</p>
+    <h1>The Bay Area,<br>by age, sex &amp; <em>race</em>.</h1>
+    <p class="dek">The nine-county San Francisco Bay Area as a single region — Alameda, Contra Costa, Marin, Napa, San Francisco, San Mateo, Santa Clara, Solano and Sonoma — and then broken back into its counties. Filter by race to see each group's age-and-sex structure against the whole-region silhouette.</p>
+  </header>
+
+  <div class="heroline">
+    <div class="num" id="heroNum"></div>
+    <div class="split" id="heroSplit"></div>
+  </div>
+
+  <div class="controls">
+    <div>
+      <div class="ctl-label">Race / origin filter</div>
+      <div class="seg" id="raceSeg" role="group" aria-label="Race filter"></div>
+    </div>
+    <div>
+      <div class="ctl-label">Measure</div>
+      <div class="seg" id="measureSeg" role="group" aria-label="Measure">
+        <button data-m="pct" aria-pressed="true">% of population</button>
+        <button data-m="count" aria-pressed="false">Head count</button>
+      </div>
+    </div>
+    <div class="legend-gender">
+      <span><i style="background:var(--male)"></i>Male</span>
+      <span><i style="background:var(--female)"></i>Female</span>
+      <span class="ghost-key" id="ghostKey" style="display:none"><i></i>Whole-region outline</span>
+    </div>
+  </div>
+
+  <div class="hero-pyr">
+    <div class="svgwrap" id="heroPyr"></div>
+    <div class="hero-note">
+      <h2 id="heroH2">Region at a glance</h2>
+      <p id="heroP">The Bay Area's pyramid bulges hard through the prime working ages, a signature of a job-magnet region that draws adults in their 20s–40s and has comparatively few children.</p>
+      <div id="heroPills"></div>
+    </div>
+  </div>
+
+  <div class="section-head">
+    <h2>The nine counties</h2>
+    <p>Same controls, applied to each county. Counties are scaled to a shared axis so their shapes compare directly; the region above keeps its own scale. Ordered by population.</p>
+  </div>
+  <div class="counties" id="counties"></div>
+
+  <div class="section-head" style="margin-top:54px">
+    <h2>Composition</h2>
+    <p>Share of population by race and Hispanic origin (table B03002), region first, then counties.</p>
+  </div>
+  <div class="race-legend" id="raceLegend"></div>
+  <div id="composition"></div>
+
+  <footer id="foot"></footer>
+</div>
+
+<div id="tip" role="status" aria-live="polite"></div>
+
+<script>
+const DATA = {"region":{"total":7648014,"male":3829369,"female":3818645,"pyramids":{"All":[{"age":"0-4","male":190360,"female":181105},{"age":"5-9","male":197739,"female":187966},{"age":"10-14","male":215196,"female":205943},{"age":"15-17","male":139363,"female":131523},{"age":"18-19","male":89863,"female":88505},{"age":"20-24","male":230094,"female":219229},{"age":"25-29","male":268263,"female":252908},{"age":"30-34","male":312805,"female":292016},{"age":"35-44","male":590081,"female":551866},{"age":"45-54","male":502429,"female":489685},{"age":"55-64","male":475987,"female":470067},{"age":"65-74","male":361611,"female":401819},{"age":"75-84","male":195662,"female":241193},{"age":"85+","male":59916,"female":104820}],"White":[{"age":"0-4","male":48995,"female":47200},{"age":"5-9","male":55201,"female":52369},{"age":"10-14","male":60609,"female":54399},{"age":"15-17","male":39362,"female":37189},{"age":"18-19","male":27370,"female":26353},{"age":"20-24","male":66502,"female":63204},{"age":"25-29","male":79620,"female":74194},{"age":"30-34","male":100861,"female":88267},{"age":"35-44","male":201795,"female":177296},{"age":"45-54","male":184008,"female":166700},{"age":"55-64","male":208856,"female":195886},{"age":"65-74","male":182651,"female":188354},{"age":"75-84","male":109134,"female":127505},{"age":"85+","male":32641,"female":55083}],"Black":[{"age":"0-4","male":8242,"female":8858},{"age":"5-9","male":8430,"female":8891},{"age":"10-14","male":11194,"female":11999},{"age":"15-17","male":8091,"female":7576},{"age":"18-19","male":4398,"female":5320},{"age":"20-24","male":12595,"female":12330},{"age":"25-29","male":14728,"female":13975},{"age":"30-34","male":19172,"female":15798},{"age":"35-44","male":30571,"female":28109},{"age":"45-54","male":27494,"female":24693},{"age":"55-64","male":26588,"female":27360},{"age":"65-74","male":21293,"female":23515},{"age":"75-84","male":7671,"female":13149},{"age":"85+","male":2783,"female":5360}],"Asian":[{"age":"0-4","male":50502,"female":45236},{"age":"5-9","male":53934,"female":47938},{"age":"10-14","male":56324,"female":54092},{"age":"15-17","male":34004,"female":31563},{"age":"18-19","male":20546,"female":20494},{"age":"20-24","male":62903,"female":57273},{"age":"25-29","male":85426,"female":81235},{"age":"30-34","male":104431,"female":102295},{"age":"35-44","male":190454,"female":196182},{"age":"45-54","male":152135,"female":167553},{"age":"55-64","male":127275,"female":143361},{"age":"65-74","male":98485,"female":120694},{"age":"75-84","male":53258,"female":68687},{"age":"85+","male":18248,"female":30355}],"Two or more":[{"age":"0-4","male":52206,"female":51168},{"age":"5-9","male":47477,"female":45476},{"age":"10-14","male":49076,"female":47284},{"age":"15-17","male":32359,"female":28993},{"age":"18-19","male":19652,"female":17275},{"age":"20-24","male":43850,"female":42890},{"age":"25-29","male":40288,"female":38484},{"age":"30-34","male":39524,"female":41128},{"age":"35-44","male":75763,"female":73411},{"age":"45-54","male":62191,"female":62997},{"age":"55-64","male":50646,"female":52723},{"age":"65-74","male":30198,"female":35423},{"age":"75-84","male":14152,"female":15792},{"age":"85+","male":3399,"female":7882}]},"raceEth":{"White":2542572,"Black":401717,"AIAN":14773,"Asian":2254216,"NHPI":39570,"Other":57117,"Two+":423908,"Hispanic":1914141,"Total":7648014}},"counties":{"Alameda":{"total":1649060,"male":818778,"female":830282,"pyramids":{"All":[{"age":"0-4","male":42767,"female":40201},{"age":"5-9","male":47698,"female":42238},{"age":"10-14","male":43178,"female":43678},{"age":"15-17","male":29798,"female":27080},{"age":"18-19","male":20258,"female":20494},{"age":"20-24","male":47017,"female":46544},{"age":"25-29","male":53914,"female":54839},{"age":"30-34","male":68528,"female":67944},{"age":"35-44","male":134758,"female":130413},{"age":"45-54","male":111178,"female":108502},{"age":"55-64","male":99003,"female":98532},{"age":"65-74","male":72109,"female":82239},{"age":"75-84","male":37804,"female":45976},{"age":"85+","male":10768,"female":21602}],"White":[{"age":"0-4","male":9100,"female":8335},{"age":"5-9","male":9561,"female":9055},{"age":"10-14","male":8664,"female":7878},{"age":"15-17","male":6463,"female":5699},{"age":"18-19","male":5130,"female":4956},{"age":"20-24","male":10210,"female":10558},{"age":"25-29","male":13417,"female":13245},{"age":"30-34","male":18145,"female":16227},{"age":"35-44","male":36862,"female":33755},{"age":"45-54","male":31569,"female":29168},{"age":"55-64","male":34401,"female":31572},{"age":"65-74","male":28008,"female":29667},{"age":"75-84","male":17053,"female":19378},{"age":"85+","male":4615,"female":9184}],"Black":[{"age":"0-4","male":3662,"female":3538},{"age":"5-9","male":4007,"female":3493},{"age":"10-14","male":4338,"female":3875},{"age":"15-17","male":2982,"female":2750},{"age":"18-19","male":1470,"female":1892},{"age":"20-24","male":3996,"female":3969},{"age":"25-29","male":4878,"female":5644},{"age":"30-34","male":7024,"female":5756},{"age":"35-44","male":11075,"female":10742},{"age":"45-54","male":10431,"female":10635},{"age":"55-64","male":10064,"female":10521},{"age":"65-74","male":6833,"female":9380},{"age":"75-84","male":3444,"female":5210},{"age":"85+","male":1298,"female":1994}],"Asian":[{"age":"0-4","male":13532,"female":10329},{"age":"5-9","male":14862,"female":12742},{"age":"10-14","male":14054,"female":14411},{"age":"15-17","male":7921,"female":8475},{"age":"18-19","male":6021,"female":6508},{"age":"20-24","male":13930,"female":12660},{"age":"25-29","male":16888,"female":17793},{"age":"30-34","male":24467,"female":26626},{"age":"35-44","male":50753,"female":53420},{"age":"45-54","male":39537,"female":40937},{"age":"55-64","male":30807,"female":34873},{"age":"65-74","male":23855,"female":28575},{"age":"75-84","male":12356,"female":14732},{"age":"85+","male":3880,"female":7137}],"Two or more":[{"age":"0-4","male":9423,"female":10426},{"age":"5-9","male":10334,"female":8313},{"age":"10-14","male":6685,"female":8459},{"age":"15-17","male":5501,"female":4000},{"age":"18-19","male":3256,"female":2671},{"age":"20-24","male":6965,"female":8883},{"age":"25-29","male":8443,"female":7750},{"age":"30-34","male":7798,"female":9295},{"age":"35-44","male":15373,"female":14310},{"age":"45-54","male":9483,"female":10009},{"age":"55-64","male":8571,"female":8850},{"age":"65-74","male":6065,"female":6186},{"age":"75-84","male":2353,"female":2972},{"age":"85+","male":715,"female":1729}]},"raceEth":{"White":430248,"Black":150504,"AIAN":2506,"Asian":558634,"NHPI":11741,"Other":10595,"Two+":96450,"Hispanic":388382,"Total":1649060}},"Contra Costa":{"total":1172607,"male":577462,"female":595145,"pyramids":{"All":[{"age":"0-4","male":31967,"female":29404},{"age":"5-9","male":34054,"female":34133},{"age":"10-14","male":38304,"female":35251},{"age":"15-17","male":24749,"female":23612},{"age":"18-19","male":14303,"female":13418},{"age":"20-24","male":34303,"female":32743},{"age":"25-29","male":32478,"female":32824},{"age":"30-34","male":36508,"female":37407},{"age":"35-44","male":84105,"female":84439},{"age":"45-54","male":77885,"female":79296},{"age":"55-64","male":74115,"female":76355},{"age":"65-74","male":55218,"female":63690},{"age":"75-84","male":32092,"female":38719},{"age":"85+","male":7381,"female":13854}],"White":[{"age":"0-4","male":7653,"female":8049},{"age":"5-9","male":11856,"female":10382},{"age":"10-14","male":10611,"female":10194},{"age":"15-17","male":6974,"female":7534},{"age":"18-19","male":4340,"female":3744},{"age":"20-24","male":10632,"female":10883},{"age":"25-29","male":10316,"female":10047},{"age":"30-34","male":13057,"female":12734},{"age":"35-44","male":31526,"female":29235},{"age":"45-54","male":31495,"female":29603},{"age":"55-64","male":36325,"female":36313},{"age":"65-74","male":31429,"female":33428},{"age":"75-84","male":18585,"female":22415},{"age":"85+","male":5633,"female":9294}],"Black":[{"age":"0-4","male":1741,"female":2347},{"age":"5-9","male":2319,"female":2786},{"age":"10-14","male":2060,"female":2978},{"age":"15-17","male":1703,"female":2035},{"age":"18-19","male":1182,"female":642},{"age":"20-24","male":2756,"female":2605},{"age":"25-29","male":3279,"female":3304},{"age":"30-34","male":3169,"female":3967},{"age":"35-44","male":5261,"female":6585},{"age":"45-54","male":5797,"female":5181},{"age":"55-64","male":5824,"female":7195},{"age":"65-74","male":4592,"female":5252},{"age":"75-84","male":1714,"female":2806},{"age":"85+","male":414,"female":1092}],"Asian":[{"age":"0-4","male":5895,"female":5651},{"age":"5-9","male":5914,"female":6142},{"age":"10-14","male":7162,"female":6667},{"age":"15-17","male":4293,"female":3419},{"age":"18-19","male":1888,"female":1829},{"age":"20-24","male":4988,"female":5438},{"age":"25-29","male":6115,"female":6085},{"age":"30-34","male":7085,"female":7616},{"age":"35-44","male":18519,"female":21699},{"age":"45-54","male":17758,"female":20662},{"age":"55-64","male":13580,"female":15402},{"age":"65-74","male":9566,"female":13032},{"age":"75-84","male":6541,"female":8156},{"age":"85+","male":900,"female":1792}],"Two or more":[{"age":"0-4","male":11039,"female":8471},{"age":"5-9","male":8085,"female":9549},{"age":"10-14","male":10708,"female":8817},{"age":"15-17","male":6416,"female":6099},{"age":"18-19","male":2888,"female":3073},{"age":"20-24","male":7884,"female":7110},{"age":"25-29","male":5538,"female":4600},{"age":"30-34","male":5923,"female":6731},{"age":"35-44","male":13714,"female":11607},{"age":"45-54","male":10357,"female":13002},{"age":"55-64","male":8535,"female":8258},{"age":"65-74","male":4213,"female":5787},{"age":"75-84","male":2790,"female":2770},{"age":"85+","male":163,"female":708}]},"raceEth":{"White":425412,"Black":87183,"AIAN":1737,"Asian":230892,"NHPI":4661,"Other":10452,"Two+":81170,"Hispanic":331100,"Total":1172607}},"Marin":{"total":256400,"male":125103,"female":131297,"pyramids":{"All":[{"age":"0-4","male":6151,"female":5307},{"age":"5-9","male":6114,"female":6400},{"age":"10-14","male":7332,"female":6009},{"age":"15-17","male":4392,"female":5880},{"age":"18-19","male":2783,"female":2635},{"age":"20-24","male":5726,"female":6936},{"age":"25-29","male":6514,"female":4897},{"age":"30-34","male":5980,"female":5752},{"age":"35-44","male":14611,"female":15256},{"age":"45-54","male":18118,"female":17550},{"age":"55-64","male":18752,"female":19323},{"age":"65-74","male":15625,"female":18263},{"age":"75-84","male":10326,"female":12048},{"age":"85+","male":2679,"female":5041}],"White":[{"age":"0-4","male":1911,"female":2303},{"age":"5-9","male":3217,"female":3752},{"age":"10-14","male":4413,"female":3540},{"age":"15-17","male":3148,"female":2718},{"age":"18-19","male":1632,"female":1403},{"age":"20-24","male":3242,"female":2671},{"age":"25-29","male":2695,"female":2562},{"age":"30-34","male":3245,"female":3214},{"age":"35-44","male":9139,"female":8282},{"age":"45-54","male":11858,"female":11850},{"age":"55-64","male":13689,"female":14351},{"age":"65-74","male":12857,"female":14297},{"age":"75-84","male":9240,"female":10430},{"age":"85+","male":2409,"female":4204}],"Black":[{"age":"0-4","male":0,"female":0},{"age":"5-9","male":0,"female":0},{"age":"10-14","male":0,"female":0},{"age":"15-17","male":0,"female":0},{"age":"18-19","male":0,"female":0},{"age":"20-24","male":0,"female":0},{"age":"25-29","male":0,"female":0},{"age":"30-34","male":0,"female":0},{"age":"35-44","male":0,"female":0},{"age":"45-54","male":0,"female":0},{"age":"55-64","male":0,"female":0},{"age":"65-74","male":0,"female":0},{"age":"75-84","male":0,"female":0},{"age":"85+","male":0,"female":0}],"Asian":[{"age":"0-4","male":467,"female":0},{"age":"5-9","male":57,"female":476},{"age":"10-14","male":303,"female":61},{"age":"15-17","male":97,"female":663},{"age":"18-19","male":0,"female":486},{"age":"20-24","male":400,"female":0},{"age":"25-29","male":424,"female":0},{"age":"30-34","male":755,"female":495},{"age":"35-44","male":733,"female":1956},{"age":"45-54","male":1437,"female":1301},{"age":"55-64","male":1186,"female":1737},{"age":"65-74","male":879,"female":1196},{"age":"75-84","male":506,"female":804},{"age":"85+","male":77,"female":160}],"Two or more":[{"age":"0-4","male":1212,"female":2258},{"age":"5-9","male":1641,"female":1038},{"age":"10-14","male":1370,"female":679},{"age":"15-17","male":541,"female":1378},{"age":"18-19","male":799,"female":352},{"age":"20-24","male":1064,"female":1289},{"age":"25-29","male":971,"female":1140},{"age":"30-34","male":676,"female":726},{"age":"35-44","male":1294,"female":2643},{"age":"45-54","male":1454,"female":1539},{"age":"55-64","male":1524,"female":1460},{"age":"65-74","male":1214,"female":1820},{"age":"75-84","male":350,"female":534},{"age":"85+","male":60,"female":568}]},"raceEth":{"White":162015,"Black":4847,"AIAN":132,"Asian":16302,"NHPI":226,"Other":4180,"Two+":16400,"Hispanic":52298,"Total":256400}},"Napa":{"total":132727,"male":66169,"female":66558,"pyramids":{"All":[{"age":"0-4","male":2252,"female":3161},{"age":"5-9","male":3699,"female":2213},{"age":"10-14","male":3463,"female":4400},{"age":"15-17","male":2640,"female":2316},{"age":"18-19","male":2223,"female":1573},{"age":"20-24","male":3556,"female":4088},{"age":"25-29","male":4026,"female":3511},{"age":"30-34","male":4238,"female":3937},{"age":"35-44","male":8530,"female":8119},{"age":"45-54","male":8530,"female":8203},{"age":"55-64","male":8720,"female":9075},{"age":"65-74","male":7868,"female":7938},{"age":"75-84","male":5309,"female":5347},{"age":"85+","male":1115,"female":2677}],"White":[{"age":"0-4","male":921,"female":1679},{"age":"5-9","male":1615,"female":1175},{"age":"10-14","male":1359,"female":1931},{"age":"15-17","male":1189,"female":1368},{"age":"18-19","male":664,"female":474},{"age":"20-24","male":1197,"female":1595},{"age":"25-29","male":1283,"female":1600},{"age":"30-34","male":1813,"female":2085},{"age":"35-44","male":4499,"female":4643},{"age":"45-54","male":4435,"female":4280},{"age":"55-64","male":5155,"female":5554},{"age":"65-74","male":5381,"female":6109},{"age":"75-84","male":4436,"female":3928},{"age":"85+","male":811,"female":1979}],"Black":[{"age":"0-4","male":0,"female":0},{"age":"5-9","male":0,"female":0},{"age":"10-14","male":0,"female":0},{"age":"15-17","male":0,"female":0},{"age":"18-19","male":0,"female":0},{"age":"20-24","male":0,"female":0},{"age":"25-29","male":0,"female":0},{"age":"30-34","male":0,"female":0},{"age":"35-44","male":0,"female":0},{"age":"45-54","male":0,"female":0},{"age":"55-64","male":0,"female":0},{"age":"65-74","male":0,"female":0},{"age":"75-84","male":0,"female":0},{"age":"85+","male":0,"female":0}],"Asian":[{"age":"0-4","male":0,"female":138},{"age":"5-9","male":243,"female":96},{"age":"10-14","male":500,"female":457},{"age":"15-17","male":306,"female":284},{"age":"18-19","male":392,"female":102},{"age":"20-24","male":247,"female":677},{"age":"25-29","male":487,"female":133},{"age":"30-34","male":739,"female":203},{"age":"35-44","male":348,"female":1007},{"age":"45-54","male":979,"female":1155},{"age":"55-64","male":798,"female":890},{"age":"65-74","male":784,"female":356},{"age":"75-84","male":183,"female":989},{"age":"85+","male":90,"female":195}],"Two or more":[{"age":"0-4","male":1005,"female":495},{"age":"5-9","male":667,"female":468},{"age":"10-14","male":740,"female":419},{"age":"15-17","male":602,"female":318},{"age":"18-19","male":214,"female":440},{"age":"20-24","male":1187,"female":541},{"age":"25-29","male":738,"female":402},{"age":"30-34","male":192,"female":552},{"age":"35-44","male":1115,"female":1260},{"age":"45-54","male":1559,"female":1263},{"age":"55-64","male":415,"female":769},{"age":"65-74","male":548,"female":411},{"age":"75-84","male":513,"female":231},{"age":"85+","male":51,"female":226}]},"raceEth":{"White":63005,"Black":2478,"AIAN":323,"Asian":12778,"NHPI":129,"Other":845,"Two+":3733,"Hispanic":49436,"Total":132727}},"San Francisco":{"total":827526,"male":425910,"female":401616,"pyramids":{"All":[{"age":"0-4","male":16865,"female":15517},{"age":"5-9","male":12268,"female":13387},{"age":"10-14","male":18378,"female":16044},{"age":"15-17","male":9996,"female":8622},{"age":"18-19","male":6360,"female":7891},{"age":"20-24","male":21421,"female":21381},{"age":"25-29","male":39273,"female":37616},{"age":"30-34","male":45982,"female":40675},{"age":"35-44","male":75121,"female":63120},{"age":"45-54","male":56144,"female":49604},{"age":"55-64","male":53351,"female":45681},{"age":"65-74","male":41384,"female":42196},{"age":"75-84","male":21091,"female":27564},{"age":"85+","male":8276,"female":12318}],"White":[{"age":"0-4","male":5785,"female":5372},{"age":"5-9","male":3271,"female":4114},{"age":"10-14","male":5378,"female":4006},{"age":"15-17","male":2348,"female":2344},{"age":"18-19","male":2075,"female":2922},{"age":"20-24","male":7363,"female":6806},{"age":"25-29","male":16865,"female":14678},{"age":"30-34","male":21104,"female":16439},{"age":"35-44","male":32598,"female":24320},{"age":"45-54","male":23986,"female":17958},{"age":"55-64","male":23390,"female":15688},{"age":"65-74","male":17247,"female":13614},{"age":"75-84","male":9934,"female":10511},{"age":"85+","male":2495,"female":4191}],"Black":[{"age":"0-4","male":538,"female":646},{"age":"5-9","male":573,"female":110},{"age":"10-14","male":1245,"female":2220},{"age":"15-17","male":680,"female":617},{"age":"18-19","male":637,"female":698},{"age":"20-24","male":1143,"female":1438},{"age":"25-29","male":1217,"female":1742},{"age":"30-34","male":1984,"female":1674},{"age":"35-44","male":3289,"female":3131},{"age":"45-54","male":3030,"female":2150},{"age":"55-64","male":2773,"female":1983},{"age":"65-74","male":2981,"female":1974},{"age":"75-84","male":560,"female":1454},{"age":"85+","male":116,"female":697}],"Asian":[{"age":"0-4","male":3734,"female":2950},{"age":"5-9","male":3471,"female":3156},{"age":"10-14","male":5443,"female":4202},{"age":"15-17","male":3203,"female":2880},{"age":"18-19","male":1905,"female":2135},{"age":"20-24","male":7744,"female":7059},{"age":"25-29","male":13011,"female":12862},{"age":"30-34","male":14089,"female":14120},{"age":"35-44","male":21836,"female":23376},{"age":"45-54","male":17107,"female":20564},{"age":"55-64","male":18077,"female":20216},{"age":"65-74","male":16879,"female":20744},{"age":"75-84","male":8627,"female":12833},{"age":"85+","male":4761,"female":6245}],"Two or more":[{"age":"0-4","male":4708,"female":5686},{"age":"5-9","male":3241,"female":3341},{"age":"10-14","male":3184,"female":4196},{"age":"15-17","male":2547,"female":1681},{"age":"18-19","male":984,"female":1421},{"age":"20-24","male":3420,"female":3755},{"age":"25-29","male":4462,"female":4957},{"age":"30-34","male":4539,"female":4286},{"age":"35-44","male":8721,"female":7743},{"age":"45-54","male":6662,"female":3651},{"age":"55-64","male":4912,"female":4650},{"age":"65-74","male":2340,"female":3726},{"age":"75-84","male":978,"female":1196},{"age":"85+","male":521,"female":386}]},"raceEth":{"White":300136,"Black":38793,"AIAN":1382,"Asian":290477,"NHPI":2355,"Other":6417,"Two+":49074,"Hispanic":138892,"Total":827526}},"San Mateo":{"total":742893,"male":370231,"female":372662,"pyramids":{"All":[{"age":"0-4","male":19098,"female":18333},{"age":"5-9","male":19267,"female":18704},{"age":"10-14","male":19802,"female":19154},{"age":"15-17","male":13634,"female":12259},{"age":"18-19","male":7786,"female":7297},{"age":"20-24","male":21254,"female":19227},{"age":"25-29","male":25011,"female":22774},{"age":"30-34","male":29836,"female":28165},{"age":"35-44","male":55553,"female":53639},{"age":"45-54","male":48785,"female":48595},{"age":"55-64","male":46937,"female":47520},{"age":"65-74","male":37058,"female":40625},{"age":"75-84","male":19562,"female":25064},{"age":"85+","male":6648,"female":11306}],"White":[{"age":"0-4","male":4454,"female":3646},{"age":"5-9","male":6024,"female":5535},{"age":"10-14","male":6239,"female":5404},{"age":"15-17","male":4501,"female":3800},{"age":"18-19","male":2617,"female":2015},{"age":"20-24","male":7326,"female":5512},{"age":"25-29","male":6319,"female":5844},{"age":"30-34","male":10015,"female":7689},{"age":"35-44","male":19244,"female":16128},{"age":"45-54","male":18259,"female":16781},{"age":"55-64","male":20433,"female":20236},{"age":"65-74","male":18492,"female":17896},{"age":"75-84","male":10629,"female":12813},{"age":"85+","male":4028,"female":5758}],"Black":[{"age":"0-4","male":141,"female":389},{"age":"5-9","male":247,"female":103},{"age":"10-14","male":242,"female":320},{"age":"15-17","male":739,"female":72},{"age":"18-19","male":0,"female":219},{"age":"20-24","male":375,"female":0},{"age":"25-29","male":974,"female":490},{"age":"30-34","male":1302,"female":651},{"age":"35-44","male":1351,"female":375},{"age":"45-54","male":993,"female":765},{"age":"55-64","male":721,"female":399},{"age":"65-74","male":1432,"female":1519},{"age":"75-84","male":250,"female":357},{"age":"85+","male":0,"female":437}],"Asian":[{"age":"0-4","male":6462,"female":6104},{"age":"5-9","male":4803,"female":4697},{"age":"10-14","male":6143,"female":5604},{"age":"15-17","male":3140,"female":2733},{"age":"18-19","male":1569,"female":1366},{"age":"20-24","male":5980,"female":5299},{"age":"25-29","male":7760,"female":8501},{"age":"30-34","male":10814,"female":10997},{"age":"35-44","male":19541,"female":22237},{"age":"45-54","male":15464,"female":17587},{"age":"55-64","male":12760,"female":15504},{"age":"65-74","male":11442,"female":13709},{"age":"75-84","male":6122,"female":7988},{"age":"85+","male":1885,"female":3382}],"Two or more":[{"age":"0-4","male":5504,"female":4664},{"age":"5-9","male":5687,"female":4892},{"age":"10-14","male":4803,"female":4304},{"age":"15-17","male":3819,"female":3613},{"age":"18-19","male":1967,"female":1805},{"age":"20-24","male":4076,"female":4337},{"age":"25-29","male":4640,"female":4374},{"age":"30-34","male":3786,"female":3744},{"age":"35-44","male":7639,"female":8098},{"age":"45-54","male":7600,"female":7174},{"age":"55-64","male":6293,"female":6087},{"age":"65-74","male":2800,"female":4365},{"age":"75-84","male":1906,"female":1823},{"age":"85+","male":454,"female":1052}]},"raceEth":{"White":248259,"Black":13724,"AIAN":1028,"Asian":236961,"NHPI":6971,"Other":4552,"Two+":45748,"Hispanic":185650,"Total":742893}},"Santa Clara":{"total":1926325,"male":980603,"female":945722,"pyramids":{"All":[{"age":"0-4","male":48388,"female":45609},{"age":"5-9","male":49212,"female":47166},{"age":"10-14","male":56829,"female":53826},{"age":"15-17","male":36146,"female":34899},{"age":"18-19","male":25485,"female":25021},{"age":"20-24","male":67185,"female":61718},{"age":"25-29","male":78599,"female":70042},{"age":"30-34","male":89640,"female":76476},{"age":"35-44","male":149591,"female":133481},{"age":"45-54","male":124901,"female":121725},{"age":"55-64","male":116994,"female":112762},{"age":"65-74","male":80324,"female":86403},{"age":"75-84","male":41976,"female":51925},{"age":"85+","male":15333,"female":24669}],"White":[{"age":"0-4","male":12191,"female":10775},{"age":"5-9","male":10408,"female":10609},{"age":"10-14","male":13238,"female":11973},{"age":"15-17","male":8111,"female":7382},{"age":"18-19","male":6572,"female":7133},{"age":"20-24","male":15788,"female":15187},{"age":"25-29","male":16915,"female":15698},{"age":"30-34","male":20243,"female":17333},{"age":"35-44","male":37226,"female":31231},{"age":"45-54","male":35075,"female":30226},{"age":"55-64","male":43679,"female":38082},{"age":"65-74","male":34724,"female":33275},{"age":"75-84","male":19649,"female":23382},{"age":"85+","male":6521,"female":11857}],"Black":[{"age":"0-4","male":1177,"female":987},{"age":"5-9","male":202,"female":1163},{"age":"10-14","male":1198,"female":506},{"age":"15-17","male":810,"female":682},{"age":"18-19","male":746,"female":1055},{"age":"20-24","male":1816,"female":2139},{"age":"25-29","male":2231,"female":1072},{"age":"30-34","male":2743,"female":1354},{"age":"35-44","male":4233,"female":2941},{"age":"45-54","male":3346,"female":2177},{"age":"55-64","male":2922,"female":2726},{"age":"65-74","male":1953,"female":1928},{"age":"75-84","male":432,"female":1038},{"age":"85+","male":485,"female":251}],"Asian":[{"age":"0-4","male":18498,"female":16583},{"age":"5-9","male":21071,"female":17924},{"age":"10-14","male":19878,"female":20547},{"age":"15-17","male":13177,"female":11673},{"age":"18-19","male":8260,"female":7192},{"age":"20-24","male":26299,"female":23007},{"age":"25-29","male":37145,"female":33188},{"age":"30-34","male":43503,"female":38570},{"age":"35-44","male":71063,"female":64068},{"age":"45-54","male":53476,"female":57648},{"age":"55-64","male":43987,"female":46947},{"age":"65-74","male":29645,"female":36244},{"age":"75-84","male":15893,"female":19405},{"age":"85+","male":6148,"female":9584}],"Two or more":[{"age":"0-4","male":10753,"female":10704},{"age":"5-9","male":11025,"female":10584},{"age":"10-14","male":14568,"female":14289},{"age":"15-17","male":8862,"female":8444},{"age":"18-19","male":6160,"female":4980},{"age":"20-24","male":12957,"female":10826},{"age":"25-29","male":11269,"female":10281},{"age":"30-34","male":11836,"female":9766},{"age":"35-44","male":18206,"female":18681},{"age":"45-54","male":17283,"female":17275},{"age":"55-64","male":13042,"female":14560},{"age":"65-74","male":8198,"female":6678},{"age":"75-84","male":3407,"female":4270},{"age":"85+","male":825,"female":1823}]},"raceEth":{"White":496182,"Black":41880,"AIAN":4432,"Asian":806238,"NHPI":8043,"Other":14188,"Two+":78165,"Hispanic":477197,"Total":1926325}},"Solano":{"total":455101,"male":226927,"female":228174,"pyramids":{"All":[{"age":"0-4","male":11643,"female":12613},{"age":"5-9","male":13152,"female":13133},{"age":"10-14","male":15091,"female":13992},{"age":"15-17","male":9220,"female":8292},{"age":"18-19","male":4769,"female":4141},{"age":"20-24","male":15670,"female":13166},{"age":"25-29","male":15007,"female":13597},{"age":"30-34","male":16893,"female":15797},{"age":"35-44","male":33510,"female":31479},{"age":"45-54","male":27429,"female":26677},{"age":"55-64","male":27248,"female":28539},{"age":"65-74","male":22413,"female":26642},{"age":"75-84","male":11505,"female":13933},{"age":"85+","male":3377,"female":6173}],"White":[{"age":"0-4","male":2496,"female":2405},{"age":"5-9","male":3619,"female":3401},{"age":"10-14","male":4370,"female":3049},{"age":"15-17","male":2566,"female":1820},{"age":"18-19","male":1766,"female":1242},{"age":"20-24","male":4278,"female":4152},{"age":"25-29","male":4751,"female":3818},{"age":"30-34","male":5334,"female":4605},{"age":"35-44","male":11567,"female":10541},{"age":"45-54","male":9581,"female":9529},{"age":"55-64","male":11009,"female":11618},{"age":"65-74","male":10939,"female":12556},{"age":"75-84","male":5974,"female":7579},{"age":"85+","male":2139,"female":2726}],"Black":[{"age":"0-4","male":936,"female":764},{"age":"5-9","male":955,"female":972},{"age":"10-14","male":1939,"female":1819},{"age":"15-17","male":1087,"female":1030},{"age":"18-19","male":186,"female":636},{"age":"20-24","male":1769,"female":1663},{"age":"25-29","male":2064,"female":1681},{"age":"30-34","male":2245,"female":2025},{"age":"35-44","male":5153,"female":3813},{"age":"45-54","male":3487,"female":3321},{"age":"55-64","male":3704,"female":4315},{"age":"65-74","male":3106,"female":3250},{"age":"75-84","male":1220,"female":2003},{"age":"85+","male":470,"female":544}],"Asian":[{"age":"0-4","male":1465,"female":2927},{"age":"5-9","male":2336,"female":2067},{"age":"10-14","male":2369,"female":1643},{"age":"15-17","male":1162,"female":1156},{"age":"18-19","male":340,"female":409},{"age":"20-24","male":2607,"female":2259},{"age":"25-29","male":2664,"female":2268},{"age":"30-34","male":2592,"female":2873},{"age":"35-44","male":5236,"female":6442},{"age":"45-54","male":5002,"female":5828},{"age":"55-64","male":4614,"female":6120},{"age":"65-74","male":4358,"female":5435},{"age":"75-84","male":2337,"female":2846},{"age":"85+","male":507,"female":1802}],"Two or more":[{"age":"0-4","male":4712,"female":4787},{"age":"5-9","male":3952,"female":4199},{"age":"10-14","male":3990,"female":3834},{"age":"15-17","male":2235,"female":2290},{"age":"18-19","male":1569,"female":1115},{"age":"20-24","male":3370,"female":3810},{"age":"25-29","male":2546,"female":3260},{"age":"30-34","male":3286,"female":3353},{"age":"35-44","male":4526,"female":5559},{"age":"45-54","male":4210,"female":3711},{"age":"55-64","male":4389,"female":3571},{"age":"65-74","male":2229,"female":3266},{"age":"75-84","male":934,"female":670},{"age":"85+","male":261,"female":748}]},"raceEth":{"White":143456,"Black":54816,"AIAN":1206,"Asian":78863,"NHPI":3879,"Other":2354,"Two+":29879,"Hispanic":140648,"Total":455101}},"Sonoma":{"total":485375,"male":238186,"female":247189,"pyramids":{"All":[{"age":"0-4","male":11229,"female":10960},{"age":"5-9","male":12275,"female":10592},{"age":"10-14","male":12819,"female":13589},{"age":"15-17","male":8788,"female":8563},{"age":"18-19","male":5896,"female":6035},{"age":"20-24","male":13962,"female":13426},{"age":"25-29","male":13441,"female":12808},{"age":"30-34","male":15200,"female":15863},{"age":"35-44","male":34302,"female":31920},{"age":"45-54","male":29459,"female":29533},{"age":"55-64","male":30867,"female":32280},{"age":"65-74","male":29612,"female":33823},{"age":"75-84","male":15997,"female":20617},{"age":"85+","male":4339,"female":7180}],"White":[{"age":"0-4","male":4484,"female":4636},{"age":"5-9","male":5630,"female":4346},{"age":"10-14","male":6337,"female":6424},{"age":"15-17","male":4062,"female":4524},{"age":"18-19","male":2574,"female":2464},{"age":"20-24","male":6466,"female":5840},{"age":"25-29","male":7059,"female":6702},{"age":"30-34","male":7905,"female":7941},{"age":"35-44","male":19134,"female":19161},{"age":"45-54","male":17750,"female":17305},{"age":"55-64","male":20775,"female":22472},{"age":"65-74","male":23574,"female":27512},{"age":"75-84","male":13634,"female":17069},{"age":"85+","male":3990,"female":5890}],"Black":[{"age":"0-4","male":47,"female":187},{"age":"5-9","male":127,"female":264},{"age":"10-14","male":172,"female":281},{"age":"15-17","male":90,"female":390},{"age":"18-19","male":177,"female":178},{"age":"20-24","male":740,"female":516},{"age":"25-29","male":85,"female":42},{"age":"30-34","male":705,"female":371},{"age":"35-44","male":209,"female":522},{"age":"45-54","male":410,"female":464},{"age":"55-64","male":580,"female":221},{"age":"65-74","male":396,"female":212},{"age":"75-84","male":51,"female":281},{"age":"85+","male":0,"female":345}],"Asian":[{"age":"0-4","male":449,"female":554},{"age":"5-9","male":1177,"female":638},{"age":"10-14","male":472,"female":500},{"age":"15-17","male":705,"female":280},{"age":"18-19","male":171,"female":467},{"age":"20-24","male":708,"female":874},{"age":"25-29","male":932,"female":405},{"age":"30-34","male":387,"female":795},{"age":"35-44","male":2425,"female":1977},{"age":"45-54","male":1375,"female":1871},{"age":"55-64","male":1466,"female":1672},{"age":"65-74","male":1077,"female":1403},{"age":"75-84","male":693,"female":934},{"age":"85+","male":0,"female":58}],"Two or more":[{"age":"0-4","male":3850,"female":3677},{"age":"5-9","male":2845,"female":3092},{"age":"10-14","male":3028,"female":2287},{"age":"15-17","male":1836,"female":1170},{"age":"18-19","male":1815,"female":1418},{"age":"20-24","male":2927,"female":2339},{"age":"25-29","male":1681,"female":1720},{"age":"30-34","male":1488,"female":2675},{"age":"35-44","male":5175,"female":3510},{"age":"45-54","male":3583,"female":5373},{"age":"55-64","male":2965,"female":4518},{"age":"65-74","male":2591,"female":3184},{"age":"75-84","male":921,"female":1326},{"age":"85+","male":349,"female":642}]},"raceEth":{"White":273859,"Black":7492,"AIAN":2027,"Asian":23071,"NHPI":1565,"Other":3534,"Two+":23289,"Hispanic":150538,"Total":485375}}},"countyOrder":["Santa Clara","Alameda","Contra Costa","San Francisco","San Mateo","Sonoma","Solano","Marin","Napa"],"bands":["0-4","5-9","10-14","15-17","18-19","20-24","25-29","30-34","35-44","45-54","55-64","65-74","75-84","85+"],"raceGroups":["All","White","Black","Asian","Two or more"]};
+
+const BANDS = DATA.bands;
+const REGION = DATA.region;
+const COUNTY_ORDER = DATA.countyOrder;
+const MALE = getComputedStyle(document.documentElement).getPropertyValue('--male').trim();
+const FEMALE = getComputedStyle(document.documentElement).getPropertyValue('--female').trim();
+
+let race="All", measure="pct";
+const fmt=n=>n.toLocaleString("en-US");
+const pct1=x=>(x*100).toFixed(1)+"%";
+const NS="http://www.w3.org/2000/svg";
+function el(t,a){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);return e;}
+
+/* geometry (shared) */
+const W=340,H=470,padT=34,padB=30,gutter=50;
+const plotH=H-padT-padB, bandH=plotH/BANDS.length;
+const half=(W-gutter)/2, cxL=half, cxR=half+gutter, barMaxPx=half-6;
+
+const tip=document.getElementById("tip");
+
+/* axis maxima: region scaled to itself; counties share one scale */
+function regionMax(){
+  const all=REGION.pyramids["All"], tot=REGION.total; let m=0;
+  for(const b of all){const a=measure==="pct"?b.male/tot:b.male,c=measure==="pct"?b.female/tot:b.female;if(a>m)m=a;if(c>m)m=c;}
+  return m;
+}
+function countyMax(){
+  let m=0;
+  for(const name of COUNTY_ORDER){
+    const cd=DATA.counties[name], all=cd.pyramids["All"], tot=cd.total;
+    for(const b of all){const a=measure==="pct"?b.male/tot:b.male,c=measure==="pct"?b.female/tot:b.female;if(a>m)m=a;if(c>m)m=c;}
+  }
+  return m;
+}
+
+/* a registry of pyramids: {entry, refs, getMax} */
+const pyrs=[];
+
+function buildPyramid(container, entry, getMax, opts){
+  opts=opts||{};
+  const svg=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img","aria-label":`Population pyramid for ${entry.name}`});
+  const grid=el("g",{}); svg.appendChild(grid);
+  svg.appendChild(el("line",{class:"center-line",x1:cxL,y1:padT-4,x2:cxL,y2:H-padB}));
+  svg.appendChild(el("line",{class:"center-line",x1:cxR,y1:padT-4,x2:cxR,y2:H-padB}));
+  svg.appendChild(el("line",{class:"axis-line",x1:6,y1:H-padB,x2:W-6,y2:H-padB}));
+  const hm=el("text",{class:"head-m",x:cxL-4,y:padT-14}); hm.textContent="◄ Male";
+  const hf=el("text",{class:"head-f",x:cxR+4,y:padT-14}); hf.textContent="Female ►";
+  svg.appendChild(hm); svg.appendChild(hf);
+
+  const refs={};
+  for(let bi=0;bi<BANDS.length;bi++){
+    const r=(BANDS.length-1)-bi, y=padT+r*bandH, bh=bandH*0.64, by=y+(bandH-bh)/2;
+    const mG=el("rect",{class:"ghost",x:cxL,y:by,width:0,height:bh,fill:"none",stroke:"var(--ink-soft)","stroke-width":1.1,opacity:0,rx:.5});
+    const fG=el("rect",{class:"ghost",x:cxR,y:by,width:0,height:bh,fill:"none",stroke:"var(--ink-soft)","stroke-width":1.1,opacity:0,rx:.5});
+    const mS=el("rect",{class:"bar",x:cxL,y:by,width:0,height:bh,fill:MALE,rx:.5,tabindex:0,role:"img"});
+    const fS=el("rect",{class:"bar",x:cxR,y:by,width:0,height:bh,fill:FEMALE,rx:.5,tabindex:0,role:"img"});
+    svg.appendChild(mG);svg.appendChild(fG);svg.appendChild(mS);svg.appendChild(fS);
+    if(opts.labels!==false){
+      const lab=el("text",{class:"age-lab",x:cxL+gutter/2,y:by+bh/2+3.2}); lab.textContent=BANDS[bi]; svg.appendChild(lab);
+    }
+    wireHover(mS,entry,bi,"male"); wireHover(fS,entry,bi,"female");
+    refs[bi]={mS,fS,mG,fG};
+  }
+  const anum=el("g",{}); svg.appendChild(anum);
+  refs.grid=grid; refs.anum=anum;
+  container.appendChild(svg);
+  pyrs.push({entry,refs,getMax,showAxisNums:opts.axisNums!==false});
+}
+
+function drawAxis(p){
+  const max=p.getMax(), {grid,anum}=p.refs;
+  grid.innerHTML=""; anum.innerHTML="";
+  for(const t of [0.25,0.5,0.75,1]){
+    const dx=t*barMaxPx;
+    grid.appendChild(el("line",{class:"grid-line",x1:cxL-dx,y1:padT,x2:cxL-dx,y2:H-padB}));
+    grid.appendChild(el("line",{class:"grid-line",x1:cxR+dx,y1:padT,x2:cxR+dx,y2:H-padB}));
+    if(!p.showAxisNums) continue;
+    const val=max*t;
+    const txt=measure==="pct"?(val*100).toFixed(val<0.1?1:0)+"%":(val>=1000?Math.round(val/1000)+"k":Math.round(val));
+    const tl=el("text",{class:"axis-num",x:cxL-dx,y:H-padB+13}); tl.textContent=txt;
+    const tr=el("text",{class:"axis-num",x:cxR+dx,y:H-padB+13}); tr.textContent=txt;
+    anum.appendChild(tl);anum.appendChild(tr);
+  }
+}
+
+function updatePyramid(p){
+  const max=p.getMax(), tot=p.entry.total;
+  const solid=p.entry.pyramids[race], all=p.entry.pyramids["All"], showGhost=race!=="All";
+  const scale=v=>Math.max(0,(v/max)*barMaxPx);
+  for(let bi=0;bi<BANDS.length;bi++){
+    const R=p.refs[bi];
+    const smv=measure==="pct"?solid[bi].male/tot:solid[bi].male;
+    const sfv=measure==="pct"?solid[bi].female/tot:solid[bi].female;
+    const amv=measure==="pct"?all[bi].male/tot:all[bi].male;
+    const afv=measure==="pct"?all[bi].female/tot:all[bi].female;
+    const lm=scale(smv),lf=scale(sfv),lgm=scale(amv),lgf=scale(afv);
+    R.mS.style.x=(cxL-lm)+"px"; R.mS.style.width=lm+"px";
+    R.fS.style.x=cxR+"px";      R.fS.style.width=lf+"px";
+    R.mG.style.x=(cxL-lgm)+"px";R.mG.style.width=lgm+"px";
+    R.fG.style.x=cxR+"px";      R.fG.style.width=lgf+"px";
+    R.mG.style.opacity=showGhost?1:0; R.fG.style.opacity=showGhost?1:0;
+  }
+  drawAxis(p);
+}
+
+function wireHover(rect,entry,bi,sex){
+  const move=e=>{
+    const tot=entry.total, solid=entry.pyramids[race][bi], all=entry.pyramids["All"][bi];
+    const sv=solid[sex], av=all[sex], grp=race==="All"?"All residents":race;
+    let html=`<div class="hd">${entry.name} &middot; ${BANDS[bi]}</div>`;
+    html+=`<div class="tg"><span class="k">${sex[0].toUpperCase()+sex.slice(1)}, ${grp}</span><b>${fmt(sv)}</b></div>`;
+    html+=`<div class="tg"><span class="k">Share of pop.</span><b>${pct1(sv/tot)}</b></div>`;
+    if(race!=="All"){const sh=av>0?sv/av:0; html+=`<div class="tg"><span class="k">Of all ${sex}s this age</span><b>${pct1(sh)}</b></div>`;}
+    tip.innerHTML=html; tip.style.opacity=1;
+    const pad=14; let x=e.clientX+pad,y=e.clientY+pad,tw=tip.offsetWidth,th=tip.offsetHeight;
+    if(x+tw>innerWidth-8)x=e.clientX-tw-pad; if(y+th>innerHeight-8)y=e.clientY-th-pad;
+    tip.style.left=x+"px";tip.style.top=y+"px";
+  };
+  rect.addEventListener("mousemove",move); rect.addEventListener("mouseenter",move);
+  rect.addEventListener("focus",()=>{const b=rect.getBoundingClientRect();move({clientX:b.left+b.width/2,clientY:b.top});});
+  const hide=()=>tip.style.opacity=0; rect.addEventListener("mouseleave",hide); rect.addEventListener("blur",hide);
+}
+
+/* hero text + pills */
+function renderHeroMeta(){
+  const d=REGION;
+  document.getElementById("heroNum").innerHTML=`${fmt(d.total)}<small>residents · 9 counties</small>`;
+  const mp=(d.male/d.total*100).toFixed(1), fp=(d.female/d.total*100).toFixed(1);
+  document.getElementById("heroSplit").innerHTML=
+    `<span><span class="swatch" style="background:var(--male)"></span>Male <b>${mp}%</b></span>
+     <span><span class="swatch" style="background:var(--female)"></span>Female <b>${fp}%</b></span>`;
+  const re=d.raceEth,t=re.Total;
+  const pills=[["White",re.White],["Asian",re.Asian],["Hispanic",re.Hispanic],["Black",re.Black],["Two or more",re["Two+"]]];
+  document.getElementById("heroPills").innerHTML=
+    pills.map(([k,v])=>`<span class="pill">${k} ${(v/t*100).toFixed(0)}%</span>`).join("");
+}
+
+/* controls */
+function renderRaceSeg(){
+  const seg=document.getElementById("raceSeg"); seg.innerHTML="";
+  for(const g of DATA.raceGroups){
+    const b=document.createElement("button");
+    b.textContent=g==="All"?"All races":g;
+    b.setAttribute("aria-pressed",g===race);
+    b.onclick=()=>{race=g;sync();render();};
+    seg.appendChild(b);
+  }
+}
+function sync(){
+  [...document.querySelectorAll("#raceSeg button")].forEach((b,i)=>b.setAttribute("aria-pressed",DATA.raceGroups[i]===race));
+  [...document.querySelectorAll("#measureSeg button")].forEach(b=>b.setAttribute("aria-pressed",b.dataset.m===measure));
+  document.getElementById("ghostKey").style.display=race==="All"?"none":"inline-flex";
+}
+document.getElementById("measureSeg").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;measure=b.dataset.m;sync();render();});
+
+/* composition */
+const RACE_CATS=[["White","--c-white","White (non-Hisp.)"],["Hispanic","--c-hisp","Hispanic / Latino"],
+  ["Asian","--c-asian","Asian (non-Hisp.)"],["Black","--c-black","Black (non-Hisp.)"],
+  ["Two+","--c-two","Two or more"],["AIAN","--c-aian","Amer. Indian / AK Native"],
+  ["NHPI","--c-nhpi","Nat. Hawaiian / Pac. Isl."],["Other","--c-other","Some other race"]];
+function compRow(name,entry,isRegion){
+  const re=entry.raceEth,tot=re.Total;
+  let bars="";
+  for(const [k,v] of RACE_CATS){
+    const val=re[k],sh=val/tot,lab=sh>=0.06;
+    bars+=`<div class="seg-c" style="width:${(sh*100).toFixed(3)}%;background:var(${v})" data-c="${name}" data-k="${k}" data-val="${val}" data-share="${sh}">${lab?`<span>${(sh*100).toFixed(0)}%</span>`:""}</div>`;
+  }
+  return `<div class="comp-row ${isRegion?'region':''}"><div class="cname">${name}<small>${fmt(tot)}</small></div><div class="compbar">${bars}</div></div>`;
+}
+function renderComposition(){
+  const leg=document.getElementById("raceLegend"); leg.innerHTML="";
+  for(const [k,v,label] of RACE_CATS){const s=document.createElement("span");s.innerHTML=`<i style="background:var(${v})"></i>${label}`;leg.appendChild(s);}
+  let html=compRow("Bay Area (all 9)",REGION,true)+`<div class="comp-divider"></div>`;
+  for(const name of COUNTY_ORDER) html+=compRow(name,DATA.counties[name],false);
+  const wrap=document.getElementById("composition"); wrap.innerHTML=html;
+  wrap.querySelectorAll(".seg-c").forEach(seg=>{
+    const move=e=>{
+      const label=RACE_CATS.find(r=>r[0]===seg.dataset.k)[2];
+      tip.innerHTML=`<div class="hd">${seg.dataset.c}</div><div class="tg"><span class="k">${label}</span><b>${fmt(+seg.dataset.val)}</b></div><div class="tg"><span class="k">Share</span><b>${pct1(+seg.dataset.share)}</b></div>`;
+      tip.style.opacity=1; const pad=14;let x=e.clientX+pad,y=e.clientY+pad;
+      if(x+tip.offsetWidth>innerWidth-8)x=e.clientX-tip.offsetWidth-pad;
+      tip.style.left=x+"px";tip.style.top=y+"px";
+    };
+    seg.addEventListener("mousemove",move); seg.addEventListener("mouseleave",()=>tip.style.opacity=0);
+  });
+}
+
+function renderFooter(){
+  document.getElementById("foot").innerHTML=`
+   <p><b>Source.</b> U.S. Census Bureau, American Community Survey 2024 1-Year Estimates, pulled live from the Census Data API on ${new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"})}. The "Bay Area" here is the nine-county region (Alameda, Contra Costa, Marin, Napa, San Francisco, San Mateo, Santa Clara, Solano, Sonoma), aggregated by summing county-level estimates.</p>
+   <p><b>Tables.</b> Pyramids use <code>B01001</code> (all residents) and <code>B01001A/B/D/G</code> (White, Black, Asian, Two-or-more alone). Composition uses <code>B03002</code>.</p>
+   <p><b>Definitional note.</b> The pyramid race filters use "race alone" tables that <i>include</i> Hispanic members of each race; the composition bars use mutually-exclusive non-Hispanic categories plus one Hispanic group. The two count slightly different populations by design.</p>
+   <p><b>Precision.</b> Summing 1-year county estimates compounds their sampling error, and margins of error (returned by the API) aren't shown — read small bars as approximate. Age bands are harmonized to the coarser brackets the race tables provide.</p>`;
+}
+
+function render(){ for(const p of pyrs) updatePyramid(p); }
+
+function init(){
+  renderHeroMeta();
+  renderRaceSeg();
+  REGION.name="Bay Area";
+  buildPyramid(document.getElementById("heroPyr"), REGION, regionMax, {axisNums:true});
+  const cc=document.getElementById("counties");
+  for(const name of COUNTY_ORDER){
+    const cd=DATA.counties[name]; cd.name=name;
+    const card=document.createElement("div"); card.className="cty-card";
+    card.innerHTML=`<h3>${name}<span class="pop">${fmt(cd.total)}</span></h3>`;
+    const holder=document.createElement("div"); card.appendChild(holder); cc.appendChild(card);
+    buildPyramid(holder, cd, countyMax, {axisNums:true});
+  }
+  renderComposition();
+  renderFooter();
+  sync();
+  requestAnimationFrame(()=>requestAnimationFrame(render));
+}
+init();
+</script>
