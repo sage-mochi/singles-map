@@ -20,6 +20,8 @@ INJECT = {
     "__RTABLES__":  "ratio_tables2.json",
     "__ANALYSIS__": "analysis_data.json",
     "__M3__":       "pums_metro_m3.json",   # PUMS cross-tabs (economic/race/edu) + MOE
+    "__AGE__":      "pums_metro_age.json",  # single-year-of-age single counts + MOE (seeker mode)
+    "__KERNEL__":   "age_kernel.json",      # empirical partner-age-gap kernel
 }
 TEMPLATE_NAME = "singles_age2_template.html"
 OUTPUT        = ROOT / "site" / "index.html"
