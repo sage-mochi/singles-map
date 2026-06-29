@@ -474,9 +474,10 @@ function start(){
   const gL=svg.append("g");
   function drawLabels(){
     gL.selectAll("*").remove();
-    const S=curScale();
+    const S=curScale(); const seen=new Set();   // one label per metro (LA metro matches 3 LABELS under PUMS)
     for(const L of LABELS){
-      const r=pts.find(p=>shown(p)&&(p.full.startsWith(L.m)||p.n===L.m||p.full.indexOf(L.m)>-1)); if(!r)continue;
+      const r=pts.find(p=>shown(p)&&(p.full.startsWith(L.m)||p.n===L.m||p.full.indexOf(L.m)>-1)); if(!r||seen.has(r))continue;
+      seen.add(r);
       const rad=S(value(r));
       const baseLen=Math.hypot(L.dx,L.dy)||1, ux=L.dx/baseLen, uy=L.dy/baseLen;
       const dist=Math.max(baseLen, rad+9);          // keep label just outside the (current) circle
