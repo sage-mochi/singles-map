@@ -162,7 +162,7 @@
       <button data-r="Two or more">Two+</button>
     </div>
   </div>
-  <p class="racehint" id="racehint">Now modeled from Census <b>PUMS microdata</b> (2024 1-year), so race groups are <b>mutually exclusive</b> (Hispanic of any race, then non-Hispanic White/Black/Asian/Two+) and — unlike before — <b>respect the age slider</b>. Race and the economic filter can't be combined (separate microdata cross-tabs), so choosing one resets the other. Nine areas (the four city insets and all of Connecticut) have no PUMS estimate.</p>
+  <p class="racehint" id="racehint">Now modeled from Census <b>PUMS microdata</b> (2024 1-year), so race groups are <b>mutually exclusive</b> (Hispanic of any race, then non-Hispanic White/Black/Asian/Two+) and — unlike before — <b>respect the age slider</b>. Race and the economic filter can't be combined (separate microdata cross-tabs), so choosing one resets the other. New York and Los Angeles appear as whole metros in these views; only the five Connecticut metros lack a PUMS estimate.</p>
 
   <div class="toolbar" style="margin-bottom:2px">
     <span class="lab">Economic filter</span>
@@ -174,7 +174,7 @@
       <button data-e="i100" aria-pressed="false">$100k+</button>
     </div>
   </div>
-  <p class="racehint" id="econhint">Modeled from Census <b>PUMS microdata</b> (2024 1-year), not the published tables: single adults 20–64 by personal income (total income in 2024 dollars) or employment. Unlike the race view, these <b>respect the age slider</b>. Income/employment and race can't be combined — the microdata cross-tabs are separate — so choosing one resets the other. Nine areas (the four city insets and all of Connecticut, which lacks a clean PUMS-to-metro mapping) show no PUMS estimate.</p>
+  <p class="racehint" id="econhint">Modeled from Census <b>PUMS microdata</b> (2024 1-year), not the published tables: single adults 20–64 by personal income (total income in 2024 dollars) or employment. Unlike the race view, these <b>respect the age slider</b>. Income/employment and race can't be combined — the microdata cross-tabs are separate — so choosing one resets the other. Here New York and Los Angeles appear as whole metros (their city insets step aside); only the five Connecticut metros, which lack a clean PUMS-to-metro mapping, have no PUMS estimate.</p>
 
   <div class="age-row">
     <button class="playbtn" id="play">▶ Play ages</button>
@@ -400,6 +400,10 @@ function start(){
 
   let mode="abs", sel=-1, race="all", econ="all"; // sel -1 = all ages
   const scaleKey=()=>sel<0?"all":"band"; // all lenses are age-resolved now (econ + PUMS race)
+  const pumsLens=()=>econ!=="all"||race!=="all";
+  // NY/LA metro circles (pumsOnly) show only under a PUMS lens; their city-place
+  // insets show only otherwise. Everything else: visible whenever it has data.
+  function shown(r){ return hasData(r) && (r.pumsOnly ? pumsLens() : true); }
   const curScale=()=>scales[mode][scaleKey()];
   function magnitude(r){ // raw sizing magnitude before clip
     return mode==="abs"?Math.abs(diffOf(r,sel)) : mode==="rate"?Math.abs(rateOf(r,sel)) : lnRatio(r,sel);
@@ -446,7 +450,7 @@ function start(){
     gL.selectAll("*").remove();
     const S=curScale();
     for(const L of LABELS){
-      const r=pts.find(p=>p.full.startsWith(L.m)||p.n===L.m||p.full.indexOf(L.m)>-1); if(!r)continue;
+      const r=pts.find(p=>shown(p)&&(p.full.startsWith(L.m)||p.n===L.m||p.full.indexOf(L.m)>-1)); if(!r)continue;
       const rad=S(value(r));
       const baseLen=Math.hypot(L.dx,L.dy)||1, ux=L.dx/baseLen, uy=L.dy/baseLen;
       const dist=Math.max(baseLen, rad+9);          // keep label just outside the (current) circle
@@ -483,7 +487,7 @@ function start(){
   const cm=document.getElementById("cm"), cw=document.getElementById("cw");
   function updateCounter(){
     let male=0,fem=0;
-    for(const r of pts){ if(!hasData(r)) continue; const dd=diffOf(r,sel); if(dd>0)male++; else if(dd<0)fem++;}
+    for(const r of pts){ if(!shown(r)) continue; const dd=diffOf(r,sel); if(dd>0)male++; else if(dd<0)fem++;}
     const tot=male+fem||1;
     cm.style.width=(100*male/tot)+"%"; cw.style.width=(100*fem/tot)+"%";
     cm.textContent=male>10?male+" male":male; cw.textContent=fem>10?fem+" female":fem;
@@ -496,9 +500,9 @@ function start(){
   function update(animate){
     const S=curScale();
     circles.attr("fill",d=>COL(d))
-      .attr("fill-opacity",d=> !hasData(d)?0 : withinMoe(d,sel)?.26:.72)  // fade gaps within MOE
-      .classed("uncertain",d=>hasData(d)&&withinMoe(d,sel));
-    (animate?circles.transition().duration(520):circles).attr("r",d=>S(value(d)));
+      .attr("fill-opacity",d=> !shown(d)?0 : withinMoe(d,sel)?.26:.72)  // fade gaps within MOE
+      .classed("uncertain",d=>shown(d)&&withinMoe(d,sel));
+    (animate?circles.transition().duration(520):circles).attr("r",d=>shown(d)?S(value(d)):0);
     circles.sort((a,b)=>S(value(b))-S(value(a)));
     ageNow.textContent=AGE_LABELS[sel+1]; ageNowSub.textContent=SUBS[sel+1];
     drawLabels(); drawLegend(); updateCounter();

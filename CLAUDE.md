@@ -65,7 +65,7 @@ Inject the four JSON files into the template placeholders (`__DATA__`, `__STATES
 
 ## Status & next
 
-PUMS Milestones 1–4 are done. M1–M3 built and validated the microdata pipeline (`data/pums_metro_m3.json`; M3 base reproduces M2 exactly — national +0.02%, large metros +0.00%); M4 wired it into the live map (economic filter, age-aware mutually-exclusive race filter, MOE reliability layer), joined by CBSA `code`. Details in `docs/pums-milestone{1,2,3}-results.md` and §9 of `PROJECT_STATE.md`. **Next: refinements** — NY/LA have no PUMS view (shown only as city insets; open decision #4), the 5 CT metros are uncovered, MOE isn't on the base/age view or ranking tables, and small-metro allocation still uses total-pop afact (open #1). Open decisions: `docs/PROJECT_STATE.md`.
+PUMS Milestones 1–4 are done. M1–M3 built and validated the microdata pipeline (`data/pums_metro_m3.json`; M3 base reproduces M2 exactly — national +0.02%, large metros +0.00%); M4 wired it into the live map (economic filter, age-aware mutually-exclusive race filter, MOE reliability layer), joined by CBSA `code`. Details in `docs/pums-milestone{1,2,3}-results.md` and §9 of `PROJECT_STATE.md`. NY/LA now render as whole-metro `pumsOnly` circles under the PUMS lenses (`attach_cbsa.py`; the city insets step aside). **Next: refinements** — the 5 CT metros are uncovered, MOE isn't on the base/age view or ranking tables, and small-metro allocation still uses total-pop afact (open #1). Open decisions: `docs/PROJECT_STATE.md`.
 
 ## Docs
 

@@ -43,7 +43,9 @@ def main():
     gaz = load_gazetteer()
     name2code = {g['name']: c for c, g in gaz.items()}
     d = json.load(open(DATA / 'byage_min.json'))
-    m3 = set(json.load(open(DATA / 'pums_metro_m3.json'))['metros'])
+    d['metros'] = [m for m in d['metros'] if not m.get('pumsOnly')]  # idempotent re-run
+    m3full = json.load(open(DATA / 'pums_metro_m3.json'))
+    m3 = set(m3full['metros'])
 
     def nearest(m):
         return min(gaz, key=lambda c: (gaz[c]['lat']-m['lat'])**2 + (gaz[c]['lon']-m['lon'])**2)
@@ -62,8 +64,20 @@ def main():
         if code in m3: covered += 1
         else:          no_m3.append(m['full'])
 
+    # NY (35620) and LA (31080) appear on the map only as city-place insets
+    # (code:null), so they have no PUMS view. Add metro-level circles that the map
+    # renders ONLY under the PUMS lenses (pumsOnly flag); the base/age view keeps
+    # the insets. m/w are the M3 base counts (so hover / any base render work).
+    PUMS_ONLY = {'35620': 'New York', '31080': 'Los Angeles'}
+    for code, short in PUMS_ONLY.items():
+        g, base = gaz[code], m3full['metros'][code]['base']
+        d['metros'].append({'n': short, 'full': g['name'], 'code': code,
+                            'lon': g['lon'], 'lat': g['lat'], 'pumsOnly': True,
+                            'm': base['m'], 'w': base['w']})
+
     json.dump(d, open(DATA / 'byage_min.json', 'w'))
-    print(f'metros: {len(d["metros"])}  ({real} real + {len(d["metros"])-real} city insets)')
+    print(f'metros: {len(d["metros"])}  ({real} real + {len(d["metros"])-real-len(PUMS_ONLY)} city insets + {len(PUMS_ONLY)} pums-only)')
+    print(f'pums-only metro circles: {list(PUMS_ONLY.values())}')
     print(f'CBSA code assigned: {name_hit} by name, {coord_hit} by coordinate fallback')
     print(f'covered by M3 cross-tabs: {covered}/{real}')
     if no_m3:
