@@ -73,6 +73,7 @@
   .metro:hover{stroke:var(--ink);stroke-width:1.2}
   .metro.city{stroke:var(--ink);stroke-width:1;stroke-dasharray:2.5 1.6}
   .metro.uncertain{stroke:#b9c2bf;stroke-width:.8;stroke-dasharray:2 2}
+  .metro.active{stroke:var(--ink);stroke-width:1.5;stroke-dasharray:none;fill-opacity:.9}
   .lbl{font-family:"Public Sans";font-size:10.5px;fill:var(--ink);font-weight:500;paint-order:stroke;stroke:var(--panel);stroke-width:2.6px;stroke-linejoin:round}
   .leader{stroke:var(--ink-soft);stroke-width:.6;fill:none;opacity:.5}
   .leghead{font-family:"Public Sans";font-size:12px;font-weight:600}
@@ -384,7 +385,7 @@ function start(){
   const scales={
     abs:  {all:d3.scaleSqrt().domain([0,140000]).range([0,34]), band:d3.scaleSqrt().domain([0,72000]).range([0,32]), race:d3.scaleSqrt().domain([0,285000]).range([0,34])},
     rate: {all:d3.scaleSqrt().domain([0,95]).range([0,30]),     band:d3.scaleSqrt().domain([0,150]).range([0,30]),    race:d3.scaleSqrt().domain([0,200]).range([0,30])},
-    ratio:{all:d3.scaleSqrt().domain([0,0.55]).range([0,30]),   band:d3.scaleSqrt().domain([0,0.65]).range([0,30]),   race:d3.scaleSqrt().domain([0,0.7]).range([0,30])},
+    ratio:{all:d3.scaleSqrt().domain([0,0.55]).range([0,23]),   band:d3.scaleSqrt().domain([0,0.65]).range([0,23]),   race:d3.scaleSqrt().domain([0,0.7]).range([0,23])},
   };
   // legend entries per mode/scope. men & women sides may differ (ratio is reciprocal).
   const lnAbs=v=>Math.abs(Math.log(v/100));
@@ -443,9 +444,32 @@ function start(){
     tip.style.left=x+"px";tip.style.top=y+"px";}
 
   const circles=gMap.append("g").selectAll("circle").data(pts).enter().append("circle")
-    .attr("class",d=>d.city?"metro city":"metro").attr("cx",d=>d.x).attr("cy",d=>d.y).attr("fill-opacity",.72)
-    .on("mousemove",(e,d)=>{tip.innerHTML=tipHTML(d);tip.style.opacity=1;move(e);})
-    .on("mouseleave",()=>tip.style.opacity=0);
+    .attr("class",d=>d.city?"metro city":"metro").attr("cx",d=>d.x).attr("cy",d=>d.y).attr("fill-opacity",.72);
+
+  /* Proximity hover: pick the visible metro whose center is nearest the cursor,
+     so any metro is reachable even when a bigger neighbour overlaps it (acute in
+     ratio mode and the dense NY/CA clusters). Labels point at the same logic. */
+  let active=null;
+  const catchR=r=>Math.max(curScale()(value(r))+4, 12);   // per-metro grab radius (px)
+  function setActive(r,e){
+    if(r!==active){
+      active=r;
+      circles.classed("active",d=>d===r);
+      if(r){ circles.filter(d=>d===r).raise(); tip.innerHTML=tipHTML(r); tip.style.opacity=1; }
+      else tip.style.opacity=0;
+    }
+    if(r&&e) move(e);
+  }
+  function nearestMetro(mx,my){
+    let best=null, bd=Infinity;
+    for(const r of pts){ if(!shown(r)) continue;
+      const dx=r.x-mx, dy=r.y-my, dd=dx*dx+dy*dy;
+      if(dd<bd){ bd=dd; best=r; }
+    }
+    return (best && bd <= catchR(best)**2) ? best : null;
+  }
+  svg.on("pointermove",e=>{ const p=d3.pointer(e,svg.node()); setActive(nearestMetro(p[0],p[1]),e); })
+     .on("pointerleave",()=>setActive(null));
 
   const gL=svg.append("g");
   function drawLabels(){
@@ -462,7 +486,9 @@ function start(){
       if(dist-rad>3)
         gL.append("line").attr("class","leader").attr("x1",ex).attr("y1",ey)
           .attr("x2",lx-(L.a==="start"?3:L.a==="end"?-3:0)).attr("y2",ly-3);
-      gL.append("text").attr("class","lbl").attr("x",lx).attr("y",ly).attr("text-anchor",L.a).text(r.n);
+      gL.append("text").attr("class","lbl").attr("x",lx).attr("y",ly).attr("text-anchor",L.a).text(r.n)
+        .style("cursor","pointer")
+        .on("pointermove",ev=>{ ev.stopPropagation(); setActive(r,ev); });   // label -> its metro
     }
   }
   const gLeg=svg.append("g");
@@ -506,8 +532,9 @@ function start(){
 
   function update(animate){
     const S=curScale();
+    const baseOp = mode==="ratio"?.56:.72;   // ratio circles overlap more -> more see-through
     circles.attr("fill",d=>COL(d))
-      .attr("fill-opacity",d=> !shown(d)?0 : withinMoe(d,sel)?.26:.72)  // fade gaps within MOE
+      .attr("fill-opacity",d=> !shown(d)?0 : withinMoe(d,sel)?.24:baseOp)  // fade gaps within MOE
       .classed("uncertain",d=>shown(d)&&withinMoe(d,sel));
     (animate?circles.transition().duration(520):circles).attr("r",d=>shown(d)?S(value(d)):0);
     circles.sort((a,b)=>S(value(b))-S(value(a)));
