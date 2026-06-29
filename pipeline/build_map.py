@@ -19,6 +19,7 @@ INJECT = {
     "__STATES__":   "states_v2.json",
     "__RTABLES__":  "ratio_tables2.json",
     "__ANALYSIS__": "analysis_data.json",
+    "__M3__":       "pums_metro_m3.json",   # PUMS cross-tabs (economic/race/edu) + MOE
 }
 TEMPLATE_NAME = "singles_age2_template.html"
 OUTPUT        = ROOT / "site" / "index.html"
@@ -34,12 +35,12 @@ def find(name):
     sys.exit(f"ERROR: could not find {name} in {[str(d) for d in SEARCH_DIRS]}")
 
 def main():
-    tpl = find(TEMPLATE_NAME).read_text()
+    tpl = find(TEMPLATE_NAME).read_text(encoding="utf-8")
     out = tpl
     for ph, fname in INJECT.items():
         if ph not in out:
             sys.exit(f"ERROR: placeholder {ph} missing from template")
-        out = out.replace(ph, find(fname).read_text().strip())
+        out = out.replace(ph, find(fname).read_text(encoding="utf-8").strip())
 
     leftover = [ph for ph in INJECT if ph in out]
     if leftover:
@@ -50,7 +51,7 @@ def main():
         scripts = re.findall(r"<script>(.*?)</script>", out, re.S)
         if scripts:
             chk = ROOT / ".build_check.js"
-            chk.write_text(scripts[-1])
+            chk.write_text(scripts[-1], encoding="utf-8")
             r = subprocess.run(["node", "--check", str(chk)], capture_output=True, text=True)
             chk.unlink(missing_ok=True)
             if r.returncode != 0:
@@ -61,7 +62,7 @@ def main():
 
     # Re-verify embedded data (sanity).
     try:
-        d = json.loads(find("byage_min.json").read_text())
+        d = json.loads(find("byage_min.json").read_text(encoding="utf-8"))
         n = len(d.get("metros", []))
         cities = sum(1 for m in d["metros"] if m.get("city"))
         print(f"embedded metro markers: {n} (incl. {cities} city insets)")
@@ -69,7 +70,7 @@ def main():
         print(f"warn: could not re-verify byage_min.json ({e})")
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT.write_text(out)
+    OUTPUT.write_text(out, encoding="utf-8")
     print(f"wrote {OUTPUT}  ({len(out)//1024} KB)")
     print("Deploy: commit site/index.html — that is the only file Pages serves.")
 

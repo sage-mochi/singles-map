@@ -162,6 +162,18 @@
   </div>
   <p class="racehint" id="racehint">Census 1-year tables break marital status down by race <i>or</i> by age, not both — so race views cover all single adults 15+ and the age slider is paused. Differences between groups partly reflect their age structure (older groups carry more widowed and divorced singles).</p>
 
+  <div class="toolbar" style="margin-bottom:2px">
+    <span class="lab">Economic filter</span>
+    <div class="seg" id="econSeg" role="group" aria-label="Economic filter">
+      <button data-e="all" aria-pressed="true">All singles</button>
+      <button data-e="emp" aria-pressed="false">Employed</button>
+      <button data-e="i50" aria-pressed="false">$50k+</button>
+      <button data-e="i75" aria-pressed="false">$75k+</button>
+      <button data-e="i100" aria-pressed="false">$100k+</button>
+    </div>
+  </div>
+  <p class="racehint" id="econhint">Modeled from Census <b>PUMS microdata</b> (2024 1-year), not the published tables: single adults 20–64 by personal income (total income in 2024 dollars) or employment. Unlike the race view, these <b>respect the age slider</b>. Income/employment and race can't be combined — the microdata cross-tabs are separate — so choosing one resets the other. Nine areas (the four city insets and all of Connecticut, which lacks a clean PUMS-to-metro mapping) show no PUMS estimate.</p>
+
   <div class="age-row">
     <button class="playbtn" id="play">▶ Play ages</button>
     <div class="age-slider">
@@ -232,6 +244,7 @@ const D = __DATA__;
 const RT = __RTABLES__;
 const AN = __ANALYSIS__;
 const STATES = __STATES__;
+const M3 = __M3__;                           // PUMS cross-tabs keyed by CBSA code
 const BANDS = D.bands;                       // 9 five-year bands
 const AGE_LABELS = ["All ages",...BANDS];
 const SUBS = ["20–64",...BANDS.map(b=>b+" yrs")];
@@ -254,15 +267,34 @@ function start(){
   if(!window.d3) return setTimeout(start,40);
   const fmt=d3.format(",");
 
-  /* ---------- per-metro selection helpers ---------- */
-  // sel: -1 = all, else band index. race: "all" or a race key (all-ages 15+)
+  /* ---------- per-metro selection helpers ----------
+     Three lenses, at most one active at a time (econ and race are mutually
+     exclusive; PUMS has no race×income joint). lensVals(r,sel) -> {m,w} or null:
+       econ != "all"  -> PUMS economic cut (age-aware; null if metro has no M3)
+       race != "all"  -> published race cut (all-ages 15+; null if no estimate)
+       both "all"     -> published age-banded base
+  */
   const sumA=arr=>arr.reduce((a,b)=>a+b,0);
+  const INC_GE={i50:["50-75k","75-100k","100k+"],i75:["75-100k","100k+"],i100:["100k+"]};
+  function m3Of(r){ return r.code ? M3.metros[r.code] : null; }
+  function econVals(r,sel){
+    const x=m3Of(r); if(!x) return null;
+    const pick=node=> sel<0 ? sumA(node) : node[sel];
+    if(econ==="emp") return {m:pick(x.emp.m), w:pick(x.emp.w)};
+    let m=0,w=0; for(const b of INC_GE[econ]){ m+=pick(x.inc[b].m); w+=pick(x.inc[b].w); }
+    return {m,w};
+  }
   function rd(r){ return race!=="all" ? (r.race[race]||null) : null; }
-  function maleOf(r,sel){ const x=rd(r); if(x) return x.m; return sel<0?sumA(r.m):r.m[sel]; }
-  function femOf(r,sel){ const x=rd(r); if(x) return x.w; return sel<0?sumA(r.w):r.w[sel]; }
-  function hasData(r){ return race==="all" ? true : !!rd(r); }
-  function diffOf(r,sel){ if(race!=="all"&&!rd(r)) return 0; return maleOf(r,sel)-femOf(r,sel); }
-  function singlesOf(r,sel){ if(race!=="all"&&!rd(r)) return 0; return maleOf(r,sel)+femOf(r,sel); }
+  function lensVals(r,sel){
+    if(econ!=="all") return econVals(r,sel);
+    if(race!=="all"){ const x=rd(r); return x?{m:x.m,w:x.w}:null; }
+    return {m:sel<0?sumA(r.m):r.m[sel], w:sel<0?sumA(r.w):r.w[sel]};
+  }
+  function hasData(r){ return !!lensVals(r,sel); }
+  function maleOf(r,sel){ const v=lensVals(r,sel); return v?v.m:0; }
+  function femOf(r,sel){  const v=lensVals(r,sel); return v?v.w:0; }
+  function diffOf(r,sel){ const v=lensVals(r,sel); return v?v.m-v.w:0; }
+  function singlesOf(r,sel){ const v=lensVals(r,sel); return v?v.m+v.w:0; }
   function rateOf(r,sel){ const s=singlesOf(r,sel); return s>0?1000*diffOf(r,sel)/s:0; }
 
   /* ============ NATIONAL FLIP CHART ============ */
@@ -315,7 +347,7 @@ function start(){
   for(const r of D.metros){const xy=proj([r.lon,r.lat]); if(!xy)continue; r.x=xy[0]; r.y=xy[1]; pts.push(r);}
 
   // men per 100 women, and its log (symmetric sizing magnitude)
-  function men100(r,sel){const m=maleOf(r,sel), w=femOf(r,sel); return (w>0&&(race==="all"||rd(r)))?100*m/w:null;}
+  function men100(r,sel){const m=maleOf(r,sel), w=femOf(r,sel); return (w>0&&hasData(r))?100*m/w:null;}
   function lnRatio(r,sel){const v=men100(r,sel); return (v&&v>0)?Math.abs(Math.log(v/100)):0;}
 
   const scales={
@@ -337,24 +369,28 @@ function start(){
            race:{men:[120,150,200],women:[83,67,50]}, mag:lnAbs, t:v=>v},
   };
 
-  let mode="abs", sel=-1, race="all"; // sel -1 = all ages; race "all" = age-resolved
-  const scaleKey=()=>race!=="all"?"race":(sel<0?"all":"band");
+  let mode="abs", sel=-1, race="all", econ="all"; // sel -1 = all ages
+  const scaleKey=()=>race!=="all"?"race":(sel<0?"all":"band"); // econ reuses all/band
   const curScale=()=>scales[mode][scaleKey()];
   function magnitude(r){ // raw sizing magnitude before clip
     return mode==="abs"?Math.abs(diffOf(r,sel)) : mode==="rate"?Math.abs(rateOf(r,sel)) : lnRatio(r,sel);
   }
-  function value(r){ if(race!=="all"&&!rd(r)) return 0; return Math.min(magnitude(r), curScale().domain()[1]); } // clip
+  function value(r){ if(!hasData(r)) return 0; return Math.min(magnitude(r), curScale().domain()[1]); } // clip
   const COL=r=>diffOf(r,sel)>0?"var(--men)":"var(--women)";
 
   const tip=document.getElementById("tip");
   const RLAB={White:"White (non-Hisp.)",Black:"Black",Asian:"Asian",Hispanic:"Hispanic","Two or more":"Two or more races"};
+  const ECONLAB={emp:"Employed",i50:"$50k+ income",i75:"$75k+ income",i100:"$100k+ income"};
   function tipHTML(r){
     const cnote = r.city ? `<div class="citynote">City proper (Census place) — covers the city limits only, not the surrounding metro region, so its circle isn't directly comparable to the metro-area circles around it.</div>` : "";
-    if(race!=="all" && !rd(r))
-      return `<div class="hd">${r.full}</div><div class="tg"><span class="k">${RLAB[race]} singles</span><b>no 1-yr estimate</b></div>${cnote}`;
+    if(!hasData(r)){
+      const lab = econ!=="all" ? ECONLAB[econ]+" singles" : RLAB[race]+" singles";
+      const msg = econ!=="all" ? "no PUMS estimate" : "no 1-yr estimate";
+      return `<div class="hd">${r.full}</div><div class="tg"><span class="k">${lab}</span><b>${msg}</b></div>${cnote}`;
+    }
     const dd=diffOf(r,sel), rt=rateOf(r,sel), r100=men100(r,sel);
     const ageTxt = race!=="all" ? "all single adults 15+" : (sel<0?"ages 20–64":"ages "+BANDS[sel]);
-    const grp = race!=="all" ? RLAB[race]+" · " : "";
+    const grp = econ!=="all" ? ECONLAB[econ]+" · " : race!=="all" ? RLAB[race]+" · " : "";
     const v=dd>0?`<div class="verdict m">+${fmt(Math.abs(dd))} more single men</div>`
                 :`<div class="verdict w">+${fmt(Math.abs(dd))} more single women</div>`;
     return `<div class="hd">${r.full}</div>
@@ -415,7 +451,7 @@ function start(){
   const cm=document.getElementById("cm"), cw=document.getElementById("cw");
   function updateCounter(){
     let male=0,fem=0;
-    for(const r of pts){ if(race!=="all"&&!rd(r)) continue; const dd=diffOf(r,sel); if(dd>0)male++; else if(dd<0)fem++;}
+    for(const r of pts){ if(!hasData(r)) continue; const dd=diffOf(r,sel); if(dd>0)male++; else if(dd<0)fem++;}
     const tot=male+fem||1;
     cm.style.width=(100*male/tot)+"%"; cw.style.width=(100*fem/tot)+"%";
     cm.textContent=male>10?male+" male":male; cw.textContent=fem>10?fem+" female":fem;
@@ -427,7 +463,7 @@ function start(){
 
   function update(animate){
     const S=curScale();
-    circles.attr("fill",d=>COL(d)).attr("fill-opacity",d=>(race!=="all"&&!rd(d))?0:.72);
+    circles.attr("fill",d=>COL(d)).attr("fill-opacity",d=>hasData(d)?.72:0);
     (animate?circles.transition().duration(520):circles).attr("r",d=>S(value(d)));
     circles.sort((a,b)=>S(value(b))-S(value(a)));
     if(race!=="all"){ ageNow.textContent=RLAB[race]; ageNowSub.textContent="all singles 15+"; }
@@ -454,17 +490,31 @@ function start(){
     },950);
   });
 
-  /* race filter */
-  const ageRow=document.querySelector(".age-row"), racehint=document.getElementById("racehint");
+  /* economic + race filters — mutually exclusive (no race×income joint in PUMS) */
+  const ageRow=document.querySelector(".age-row"),
+        racehint=document.getElementById("racehint"),
+        econhint=document.getElementById("econhint");
+  function setRaceUI(){
+    [...document.querySelectorAll("#raceSeg button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.r===race));
+    const on=race!=="all";                       // race is all-ages only -> pause the age slider
+    racehint.classList.toggle("show",on);
+    ageRow.classList.toggle("disabled",on); slider.disabled=on; playBtn.disabled=on;
+  }
+  function setEconUI(){
+    [...document.querySelectorAll("#econSeg button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.e===econ));
+    econhint.classList.toggle("show",econ!=="all");  // econ is age-aware -> slider stays live
+  }
   document.getElementById("raceSeg").addEventListener("click",e=>{
     const b=e.target.closest("button"); if(!b)return;
     stopPlay(); race=b.dataset.r;
-    if(race!=="all"){ sel=-1; slider.value=0; }
-    [...document.querySelectorAll("#raceSeg button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.r===race));
-    const on=race!=="all";
-    ageRow.classList.toggle("disabled",on); slider.disabled=on; playBtn.disabled=on;
-    racehint.classList.toggle("show",on);
-    update(true);
+    if(race!=="all"){ econ="all"; sel=-1; slider.value=0; }
+    setRaceUI(); setEconUI(); update(true);
+  });
+  document.getElementById("econSeg").addEventListener("click",e=>{
+    const b=e.target.closest("button"); if(!b)return;
+    econ=b.dataset.e;
+    if(econ!=="all") race="all";
+    setRaceUI(); setEconUI(); update(true);
   });
 
   update(false);
