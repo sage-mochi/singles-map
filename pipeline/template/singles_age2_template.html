@@ -182,7 +182,7 @@
   </div>
 
   <h2 class="sec">§2 · The same flip, on the map — and your own market</h2>
-  <p class="sub"><b>Claim: where you live nudges the number; who you are and what you seek set it.</b> Drag the slider or press play and watch the map turn from blue to red — geography barely changes the story, age does. Then switch on the <b>matchmaking view</b> to measure <i>your</i> market: rivals per reciprocal match for your age, sex, race and search range. Four points are <b>cities, not metros</b> (dashed outline): Los Angeles, Long Beach and Anaheim are split out of their shared metro, and New York City stands alone — hover any of them for the geography caveat.</p>
+  <p class="sub"><b>Claim: where you live nudges the number; who you are and what you seek set it.</b> Drag the age slider or press play and watch the map turn from blue to red — geography barely changes the story, age does. Scrub the <b>year slider</b> back to 2006 to watch two decades of the same picture: the pattern holds in every ACS vintage, even as individual metros drift. Then switch on the <b>matchmaking view</b> to measure <i>your</i> market: rivals per reciprocal match for your age, sex, race and search range. Four points are <b>cities, not metros</b> (dashed outline): Los Angeles, Long Beach and Anaheim are split out of their shared metro, and New York City stands alone — hover any of them for the geography caveat.</p>
 
   <div class="toolbar" style="margin-bottom:2px">
     <span class="lab">Race / origin</span>
@@ -266,6 +266,15 @@
     <div class="age-now"><span id="ageNow">All ages</span><small id="ageNowSub">20–64</small></div>
   </div>
 
+  <div class="age-row" id="yearRow" style="margin-top:-4px">
+    <span class="lab" style="min-width:96px">Year</span>
+    <div class="age-slider">
+      <input type="range" id="year" min="0" max="17" step="1" value="17" aria-label="Year">
+      <div class="age-ticks" id="yearTicks"></div>
+    </div>
+    <div class="age-now"><span id="yearNow">2024</span><small id="yearNowSub">latest</small></div>
+  </div>
+
   <div class="counter-wrap">
     <span class="lab">Metros leaning</span>
     <div class="counter" id="counter" title="metros leaning male vs female (middle = gap within margin of error)">
@@ -342,6 +351,7 @@ const STATES = __STATES__;
 const M3 = __M3__;                           // PUMS cross-tabs keyed by CBSA code
 const AGE = __AGE__;                          // single-year-of-age single counts + MOE
 const KERNEL = __KERNEL__;                    // empirical partner-age-gap kernel
+const YRS = __YEARS__;                        // 2006-2023 B12002 history (time slider)
 const BANDS = D.bands;                       // 9 five-year bands
 const AGE_LABELS = ["All ages",...BANDS];
 const SUBS = ["20–64",...BANDS.map(b=>b+" yrs")];
@@ -390,7 +400,8 @@ function start(){
   function lensVals(r,sel){
     if(econ!=="all") return econVals(r,sel);
     if(race!=="all") return raceVals(r,sel);
-    return {m:sel<0?sumA(r.m):r.m[sel], w:sel<0?sumA(r.w):r.w[sel]};
+    const a=yearRows(r); if(!a) return null;         // no 1-yr estimate that year
+    return {m:sel<0?sumA(a.m):a.m[sel], w:sel<0?sumA(a.w):a.w[sel]};
   }
   function hasData(r){ return !!lensVals(r,sel); }
   function maleOf(r,sel){ const v=lensVals(r,sel); return v?v.m:0; }
@@ -405,6 +416,12 @@ function start(){
      band/cell views are exact. Returns {m,w} or null (no M3 for this metro). */
   const rss=a=>Math.sqrt(a.reduce((s,v)=>s+v*v,0));
   function moeOf(r,sel){
+    const pmY=arr=> sel<0 ? rss(arr) : arr[sel];
+    if(econ==="all"&&race==="all"&&yearPast()){        // historical: published RSS MOE
+      const node = r.city ? YRS.cities[r.n] : (r.code ? YRS.metros[r.code] : null);
+      if(!node||!node.m_moe[yi]) return null;
+      return {m:pmY(node.m_moe[yi]), w:pmY(node.w_moe[yi])};
+    }
     const x=m3Of(r); if(!x) return null;
     const pm=arr=> sel<0 ? rss(arr) : arr[sel];
     if(econ!=="all"){
@@ -496,6 +513,18 @@ function start(){
   let mode="abs", sel=-1, race="all", econ="all"; // sel -1 = all ages
   const seeker={on:false, sex:"m", age:30, lo:28, hi:31,
                 myRace:"none", seek:new Set(["any"])};      // matchmaking mode
+  /* time slider: YEARSL = [2006..2023, 2024]; 2024 rows come from the live map
+     data (byage/M3), historical rows from YRS (published B12002 per vintage).
+     The PUMS lenses (econ/race/seeker) are 2024-only — engaging one snaps the
+     year back; scrubbing back resets the lenses. */
+  const YEARSL=[...YRS.years, 2024];
+  let yi=YEARSL.length-1;                                    // index into YEARSL
+  const yearPast=()=> yi<YEARSL.length-1;
+  function yearRows(r){                                      // {m:[9],w:[9]} for the current year, or null
+    if(!yearPast()) return {m:r.m, w:r.w};
+    const node = r.city ? YRS.cities[r.n] : (r.code ? YRS.metros[r.code] : null);
+    return (node && node.m[yi]) ? {m:node.m[yi], w:node.w[yi]} : null;
+  }
   const scaleKey=()=>sel<0?"all":"band"; // all lenses are age-resolved now (econ + PUMS race)
   const pumsLens=()=>econ!=="all"||race!=="all"||seeker.on;
   // NY/LA metro circles (pumsOnly) show only under a PUMS lens; their city-place
@@ -643,11 +672,13 @@ function start(){
         <div class="tg"><span class="k" style="font-size:10.5px">${seeker.sex==="m"?"Man":"Woman"} ${seeker.age}${me?" ·"+me:""}, open to ${tgt}${seeker.lo}–${seeker.hi}</span></div>${verdict}${cnote}`;
     }
     if(!hasData(r)){
+      if(econ==="all"&&race==="all")
+        return `<div class="hd">${r.full}</div><div class="tg"><span class="k">${YEARSL[yi]}</span><b>no 1-yr estimate</b></div><div class="citynote">Below the 65,000-population threshold for the 1-year ACS that year, or outside that vintage's metro delineation.</div>${cnote}`;
       const lab = econ!=="all" ? ECONLAB[econ]+" singles" : RLAB[race]+" singles";
       return `<div class="hd">${r.full}</div><div class="tg"><span class="k">${lab}</span><b>no PUMS estimate</b></div>${cnote}`;
     }
     const dd=diffOf(r,sel), rt=rateOf(r,sel), r100=men100(r,sel);
-    const ageTxt = sel<0?"ages 20–64":"ages "+BANDS[sel];
+    const ageTxt = (sel<0?"ages 20–64":"ages "+BANDS[sel]) + (yearPast()?" · ACS "+YEARSL[yi]:"");
     const grp = econ!=="all" ? ECONLAB[econ]+" · " : race!=="all" ? RLAB[race]+" · " : "";
     const e=moeOf(r,sel);
     const pm=x=> e?` <span class="moe">±${fmt(Math.round(x))}</span>`:"";
@@ -787,7 +818,7 @@ function start(){
     circles.sort((a,b)=>S(valf(b))-S(valf(a)));
     ageNow.textContent=AGE_LABELS[sel+1]; ageNowSub.textContent=SUBS[sel+1];
     if(active) tip.innerHTML=tipHTML(active);   // keep an open tooltip fresh across control changes
-    drawLabels(); drawLegend(); updateCounter(); syncTables();
+    setYearUI(); drawLabels(); drawLegend(); updateCounter(); syncTables();
   }
 
   slider.addEventListener("input",()=>{stopPlay(); sel=(+slider.value)-1; update(true);});
@@ -824,13 +855,13 @@ function start(){
   document.getElementById("raceSeg").addEventListener("click",e=>{
     const b=e.target.closest("button"); if(!b)return;
     seekerOff(); race=b.dataset.r;
-    if(race!=="all") econ="all";
+    if(race!=="all"){ econ="all"; resetYear(); }        // PUMS lens -> snap to 2024
     setRaceUI(); setEconUI(); update(true);
   });
   document.getElementById("econSeg").addEventListener("click",e=>{
     const b=e.target.closest("button"); if(!b)return;
     seekerOff(); econ=b.dataset.e;
-    if(econ!=="all") race="all";
+    if(econ!=="all"){ race="all"; resetYear(); }        // PUMS lens -> snap to 2024
     setRaceUI(); setEconUI(); update(true);
   });
 
@@ -865,7 +896,7 @@ function start(){
     seeker.on=on;
     [...document.querySelectorAll("#seekerToggle button")].forEach(x=>x.setAttribute("aria-pressed",(x.dataset.s==="on")===on));
     seekControls.style.display=on?"block":"none";
-    if(on){ econ="all"; race="all"; setEconUI(); setRaceUI(); applyKernelDefault(); setSeekRaceUI(); seekerLabels(); }
+    if(on){ econ="all"; race="all"; resetYear(); setEconUI(); setRaceUI(); applyKernelDefault(); setSeekRaceUI(); seekerLabels(); }
     update(true);
   }
   document.getElementById("seekerToggle").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b)return; setSeeker(b.dataset.s==="on"); });
@@ -877,6 +908,25 @@ function start(){
     if(lo>hi){ const t=lo; lo=hi; hi=t; } seeker.lo=lo; seeker.hi=hi; seekerLabels(); update(true); }
   document.getElementById("seekerLo").addEventListener("input",seekRange);
   document.getElementById("seekerHi").addEventListener("input",seekRange);
+
+  /* ---- time slider (base demographic view only; PUMS lenses are 2024-only) ---- */
+  const yearSlider=document.getElementById("year"), yearNow=document.getElementById("yearNow"),
+        yearNowSub=document.getElementById("yearNowSub"), yearRowEl=document.getElementById("yearRow");
+  yearSlider.max=YEARSL.length-1; yearSlider.value=YEARSL.length-1;
+  document.getElementById("yearTicks").innerHTML=
+    YEARSL.map((y,i)=>`<span>${(i%3===0||i===YEARSL.length-1)?"’"+String(y).slice(2):""}</span>`).join("");
+  function setYearUI(){
+    yearNow.textContent=YEARSL[yi];
+    yearNowSub.textContent=yearPast()?"1-yr ACS, that year’s metro definitions":"latest";
+    const off=pumsLens();
+    yearRowEl.classList.toggle("disabled",off); yearSlider.disabled=off;
+  }
+  function resetYear(){ if(yearPast()){ yi=YEARSL.length-1; yearSlider.value=yi; } }
+  yearSlider.addEventListener("input",()=>{
+    stopPlay(); yi=+yearSlider.value;
+    if(yearPast()){ seekerOff(); econ="all"; race="all"; setEconUI(); setRaceUI(); setSeekRaceUI(); }
+    setYearUI(); update(true);
+  });
   /* race filter: "Seeking" requires "I am" (reciprocity is undefined without it) */
   function setSeekRaceUI(){
     [...document.querySelectorAll("#seekerMyRace button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.mr===seeker.myRace));
@@ -1042,7 +1092,7 @@ function start(){
       <div class="acard"><h4>Geography sorts by industry, not coast</h4>
         <p>Male-heavy metros cluster around <b>military bases, energy, tech and male-skewed colleges</b> (Bremerton, Colorado Springs, Provo, College Station). Female-heavy ones concentrate in the <b>South and women-heavy college towns</b> (Jackson, Montgomery, Charlottesville).</p></div>
       <div class="acard"><h4>The headline gap is fading over time</h4>
-        <p>New York's female surplus has fallen from <b>~211K (2006)</b> to <b>~136K (2024)</b> as the marriage age keeps rising for both sexes — about <b>31 for men, 29 for women</b> now, a gap held near two years for over a decade.</p></div>`;
+        <p>New York City's female singles surplus has fallen from <b>+252K (2006)</b> to <b>+146K (2024)</b> — drag the <b>year slider</b> on the map to watch it shrink (city limits are boundary-stable across vintages, unlike metros). The marriage age keeps rising for both sexes — about <b>31 for men, 29 for women</b> now, a gap held near two years for over a decade.</p></div>`;
 
     document.getElementById("puzzleIntro").innerHTML=
       `Births run about 105 boys per 100 girls, and even into the 30s the living population is only slightly male — roughly <b>${b2529.sexratio} men per 100 women</b> at 25–29. Yet single men outnumber single women by more than a million at that age. If the population is nearly balanced, where does the surplus come from? The data points to one mechanism above all: <b>women marry earlier, and marry older men.</b>`;
@@ -1102,6 +1152,7 @@ function start(){
   document.getElementById("notes").innerHTML=`
    <p><b>Why this fixes the original.</b> The 2007 map's implicit advice — move to the city with your favored surplus — barely survives contact with the age curve above. At 25–29, single men outnumber single women in 201 of 229 metros; by 60–64 women lead in 205 of 229. Almost everywhere is blue when young and red when old. Where you are nudges the number; how old you are sets the sign.</p>
    <p><b>The narrower the search, the more geography matters.</b> The headline — age outweighs place — is most true for the <i>broadest</i> searchers: under the matchmaking view with default settings, most metros sit within roughly ±10–15% of the national market, and many differences fall inside the margin of error. Narrow the search — a specific race, an unusual age range, a high income floor — and the metro spread widens to <i>multiples</i>, in both market ratio and raw pool size (a targeted pool can be thirty times larger in one metro than another). So the honest hierarchy runs: who you are, then what you seek, then when you are in life, then where you live — with <i>where</i> climbing the ranks as the search narrows, though never mattering more than the search itself.</p>
+   <p><b>The time dimension.</b> The year slider runs 2006–2024 on each year's 1-year ACS (2020 is skipped — no standard 1-year release that year). Historical estimates use <b>that year's metro definitions</b>: OMB redrew metro boundaries in the 2013 and 2023 delineations, so a metro's jump across those seams can partly reflect the boundary, not the people — the New York metro is the largest example, which is why the "fading gap" figure above uses the boundary-stable <i>city</i>. Metros below the 65,000-population threshold (or outside a vintage's delineation) show "no 1-yr estimate" in some years. Historical margins of error come from the published tables (components combined by root-sum-square); 2024's come from the PUMS replicate weights. The PUMS-based views — economic, race, matchmaking — exist for 2024 only, so engaging one snaps the year back.</p>
    <p><b>What "single" means.</b> Every unmarried adult — never-married, divorced, separated, or widowed — from table <code>B12002</code>, matching the original National Geographic definition. (Never-married only would tilt nearly every bar and circle blue, since men marry later; the divorced and widowed are what create the female surpluses at older ages.)</p>
    <p><b>What a head-count gap still can't tell you.</b> Three limits no Census table removes: it counts <b>everyone single, not everyone looking</b> — the retired widower and the active dater are one number here; it ignores <b>who's compatible</b> — sexual orientation isn't in these tables, and most people partner near their own age, so a metro's overall surplus rarely matches the pool a given person actually draws from; and it treats <b>"unmarried" as "available,"</b> though many are cohabiting or otherwise partnered. Read it as a demographic portrait, not dating odds.</p>
    <p><b>Three ways to size the circles.</b> <b>Absolute gap</b> is the original's metric — raw head-count difference, which rewards big metros. The other two normalize for size and, as a result, rank metros identically: <b>per 1,000 singles</b> expresses the gap as a share of the local single pool, while <b>men per 100 women</b> is the plain sex ratio — the most readable apples-to-apples number (100 = parity, 130 = thirty percent more men, 77 = its mirror image for women). The ratio view is sized by the log of the ratio, so an equal imbalance on either side draws an equal circle.</p>
