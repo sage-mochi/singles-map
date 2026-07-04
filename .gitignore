@@ -7,8 +7,10 @@ gaz_place.zip
 *.zip
 refs_published.json
 
-# Brainstorming docs
-docs/
+# Brainstorming docs stay local; the PRD is versioned.
+# (docs/* not docs/ — git can't re-include a file under an excluded directory)
+docs/*
+!docs/PRD.md
 
 # Build scratch
 .build_check.js
