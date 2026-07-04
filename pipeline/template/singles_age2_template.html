@@ -456,32 +456,64 @@ function start(){
     return hasData(r) && (r.pumsOnly ? pumsLens() : true);
   }
 
-  /* ---- v2 availability ratio (matchmaking): rivals per available match ----
-     matches = single opposite-sex people in your age range;
-     rivals  = same-sex competitors weighted by the empirical gap kernel g
-               (older men chasing younger women are counted). ratio = 100*rivals/matches. */
+  /* ---- v3 availability ratio (matchmaking): rivals per RECIPROCAL match ----
+     matches  = single opposite-sex people in your range, each discounted by
+                reciprocity: how much people of THEIR age+sex actually pair with
+                someone YOUR age (their conditional gap kernel, relative to its
+                peak). The realized kernel is already two-sided, so rivals get no
+                extra discount — only the seeker's self-declared range needs one.
+     rivals   = same-sex competitors, aim weighted by their own age's conditional
+                kernel (older men chasing younger women are counted).
+     ratio    = 100 * rivals / reciprocal matches. */
   const SEEK_FAV="#2f8f6f", SEEK_TOUGH="#c2603f";
   const seekScale=d3.scaleSqrt().domain([0,0.6]).range([0,27]);
+  const CG=KERNEL.condGap, cgPeak={m:{},w:{}};
+  for(const s of ["m","w"]) for(const a in CG[s]) cgPeak[s][a]=Math.max(...Object.values(CG[s][a]));
+  function seekCalc(opp,oppMoe,same,sameMoe){
+    const O = seeker.sex==="m"?"w":"m";
+    const lo=Math.max(0,seeker.lo-20), hi=Math.min(44,seeker.hi-20);
+    let matches=0,mEff=0,mM2=0,rivals=0,rM2=0;
+    for(let a=lo;a<=hi;a++){
+      const aAge=a+20;
+      const ko=CG[O][aAge], w=ko ? (ko[seeker.age-aAge]||0)/cgPeak[O][aAge] : 0;  // reciprocity
+      matches+=opp[a]; mEff+=opp[a]*w; mM2+=(oppMoe[a]*w)**2;
+      let D=0,dM2=0;
+      for(let b=0;b<45;b++){
+        const ks=CG[seeker.sex][b+20]; if(!ks)continue;
+        const g=ks[aAge-(b+20)]; if(!g)continue;
+        D+=same[b]*g; dM2+=(sameMoe[b]*g)**2;
+      }
+      rivals+=D; rM2+=dM2;
+    }
+    if(matches<=0||rivals<=0) return null;
+    if(mEff<1) return {matches, mEff:0, rivals, ratio:Infinity, moe:0, noRecip:true};
+    const ratio=100*rivals/mEff, mMoe=Math.sqrt(mM2), rMoe=Math.sqrt(rM2);
+    return {matches, mEff, rivals, ratio, accept:mEff/matches,
+            moe: ratio*Math.sqrt((mMoe/mEff)**2+(rMoe/rivals)**2)};
+  }
   function seekerData(r){
     const x=r.code?AGE.metros[r.code]:null; if(!x) return null;
     const opp = seeker.sex==="m"?x.w:x.m,  oppMoe = seeker.sex==="m"?x.w_moe:x.m_moe;
     const same= seeker.sex==="m"?x.m:x.w,  sameMoe= seeker.sex==="m"?x.m_moe:x.w_moe;
-    const g=KERNEL.gapDist[seeker.sex];
-    const lo=Math.max(0,seeker.lo-20), hi=Math.min(44,seeker.hi-20);
-    let matches=0,mM2=0,rivals=0,rM2=0;
-    for(let a=lo;a<=hi;a++){
-      matches+=opp[a]; mM2+=oppMoe[a]*oppMoe[a];
-      let D=0,dM2=0;
-      for(let b=0;b<45;b++){ const w=g[a-b]; if(!w)continue; D+=same[b]*w; dM2+=(sameMoe[b]*w)**2; }
-      rivals+=D; rM2+=dM2;
-    }
-    if(matches<=0||rivals<=0) return null;
-    const ratio=100*rivals/matches, mMoe=Math.sqrt(mM2), rMoe=Math.sqrt(rM2);
-    return {matches, rivals, ratio, moe: ratio*Math.sqrt((mMoe/matches)**2+(rMoe/rivals)**2)};
+    return seekCalc(opp,oppMoe,same,sameMoe);
   }
-  const seekVal=r=> r._sr? Math.min(Math.abs(Math.log(r._sr.ratio/100)),0.6):0;
-  const seekCol=r=> r._sr? (r._sr.ratio<100?SEEK_FAV:SEEK_TOUGH):"#ccc";
-  const seekWithinMoe=r=> !!r._sr && Math.abs(r._sr.ratio-100) < r._sr.moe;
+  /* National benchmark for the current seeker settings. The absolute level of the
+     v3 ratio depends on kernel concentration and range width (a balanced metro
+     doesn't read exactly 100), so favorable/tough is judged RELATIVE to the same
+     computation on the national age distribution — model constants cancel; what
+     remains is geography. The raw ratio + acceptance stay visible in the tooltip. */
+  const NATAGE={m:new Array(45).fill(0), w:new Array(45).fill(0)};
+  for(const cb in AGE.metros){const x=AGE.metros[cb]; for(let i=0;i<45;i++){NATAGE.m[i]+=x.m[i]; NATAGE.w[i]+=x.w[i];}}
+  const Z45=new Array(45).fill(0);
+  let natSR=null;
+  function seekNational(){
+    const opp=seeker.sex==="m"?NATAGE.w:NATAGE.m, same=seeker.sex==="m"?NATAGE.m:NATAGE.w;
+    natSR=seekCalc(opp,Z45,same,Z45);
+  }
+  const natRef=()=> (natSR&&!natSR.noRecip)?natSR.ratio:100;
+  const seekVal=r=> !r._sr?0 : r._sr.noRecip?0.3 : Math.min(Math.abs(Math.log(r._sr.ratio/natRef())),0.6);
+  const seekCol=r=> r._sr? (r._sr.ratio<natRef()?SEEK_FAV:SEEK_TOUGH):"#ccc";
+  const seekWithinMoe=r=> !!r._sr && !r._sr.noRecip && Math.abs(r._sr.ratio-natRef()) < r._sr.moe;
   const curScale=()=>scales[mode][scaleKey()];
   function magnitude(r){ // raw sizing magnitude before clip
     return mode==="abs"?Math.abs(diffOf(r,sel)) : mode==="rate"?Math.abs(rateOf(r,sel)) : lnRatio(r,sel);
@@ -497,15 +529,21 @@ function start(){
     if(seeker.on){
       const sr = r._sr || ((r.code&&AGE.metros[r.code])?seekerData(r):null);
       if(!sr) return `<div class="hd">${r.full}</div><div class="tg"><span class="k">your market</span><b>no PUMS estimate</b></div>${cnote}`;
-      const fav=sr.ratio<100, within=Math.abs(sr.ratio-100)<sr.moe;
       const oppW=seeker.sex==="m"?"women":"men", rivW=seeker.sex==="m"?"men":"women";
-      const verdict = within ? `<div class="verdict" style="color:#cdd6d4">Effectively balanced — within margin of error</div>`
-                    : fav   ? `<div class="verdict" style="color:#8fe6c4">Favorable — ${Math.round(sr.ratio)} rivals per 100 matches</div>`
-                            : `<div class="verdict" style="color:#f0b39c">Tough — ${Math.round(sr.ratio)} rivals per 100 matches</div>`;
+      if(sr.noRecip)
+        return `<div class="hd">${r.full}</div>
+          <div class="tg"><span class="k">Single ${oppW}, ${seeker.lo}–${seeker.hi}</span><b>${fmt(Math.round(sr.matches))}</b></div>
+          <div class="verdict" style="color:#f0b39c">Effectively none pair with someone ${seeker.age} — no meaningful market at this age gap</div>${cnote}`;
+      const nr=natRef(), fav=sr.ratio<nr, within=Math.abs(sr.ratio-nr)<sr.moe;
+      const pct=Math.abs(Math.round(100*(sr.ratio/nr-1)));
+      const verdict = within ? `<div class="verdict" style="color:#cdd6d4">About the national market for you — within margin of error</div>`
+                    : fav   ? `<div class="verdict" style="color:#8fe6c4">Favorable — ${pct}% fewer rivals per match than the national market for you</div>`
+                            : `<div class="verdict" style="color:#f0b39c">Tough — ${pct}% more rivals per match than the national market for you</div>`;
       return `<div class="hd">${r.full}</div>
-        <div class="tg"><span class="k">Available ${oppW}, ${seeker.lo}–${seeker.hi}</span><b>${fmt(Math.round(sr.matches))}</b></div>
-        <div class="tg"><span class="k">Competing ${rivW} (weighted by K)</span><b>${fmt(Math.round(sr.rivals))}</b></div>
-        <div class="tg"><span class="k">Rivals per 100 matches</span><b>${Math.round(sr.ratio)} <span class="moe">±${Math.round(sr.moe)}</span></b></div>
+        <div class="tg"><span class="k">Single ${oppW}, ${seeker.lo}–${seeker.hi}</span><b>${fmt(Math.round(sr.matches))}</b></div>
+        <div class="tg"><span class="k">…open to age ${seeker.age} (reciprocity)</span><b>${fmt(Math.round(sr.mEff))} <span class="moe">(${Math.round(100*sr.accept)}%)</span></b></div>
+        <div class="tg"><span class="k">Competing ${rivW} (kernel-weighted)</span><b>${fmt(Math.round(sr.rivals))}</b></div>
+        <div class="tg"><span class="k">Rivals per 100 reciprocal matches</span><b>${Math.round(sr.ratio)} <span class="moe">±${Math.round(sr.moe)} · US ${Math.round(nr)}</span></b></div>
         <div class="tg"><span class="k" style="font-size:10.5px">${seeker.sex==="m"?"Man":"Woman"} ${seeker.age}, open to ${seeker.lo}–${seeker.hi}</span></div>${verdict}${cnote}`;
     }
     if(!hasData(r)){
@@ -586,8 +624,8 @@ function start(){
     gLeg.selectAll("*").remove();
     const cx=W/2, baseY=68;
     if(seeker.on){
-      gLeg.append("text").attr("x",cx).attr("y",18).attr("text-anchor","middle").attr("class","leghead").text("Your market — rivals per available match (bigger circle = further from balance)");
-      [[-110,SEEK_FAV,"Favorable (fewer rivals)"],[70,SEEK_TOUGH,"Tough (more rivals)"]]
+      gLeg.append("text").attr("x",cx).attr("y",18).attr("text-anchor","middle").attr("class","leghead").text("Your market vs the national market for you (bigger circle = further from it)");
+      [[-130,SEEK_FAV,"Easier than national"],[60,SEEK_TOUGH,"Harder than national"]]
         .forEach(([dx,col,txt])=>{
           gLeg.append("circle").attr("cx",cx+dx).attr("cy",baseY).attr("r",9).attr("fill",col).attr("fill-opacity",.72).attr("stroke","#fff").attr("stroke-width",.6);
           gLeg.append("text").attr("x",cx+dx+14).attr("y",baseY+4).attr("class","legnum").text(txt);
@@ -618,7 +656,7 @@ function start(){
     if(seeker.on){
       for(const r of pts){ if(!shown(r)||!r._sr) continue;
         if(seekWithinMoe(r)){ close++; continue; }
-        if(r._sr.ratio<100) a++; else b++; }
+        if(r._sr.ratio<natRef()) a++; else b++; }
       cm.style.background=SEEK_FAV; cw.style.background=SEEK_TOUGH;
     } else {
       cm.style.background="var(--men)"; cw.style.background="var(--women)";
@@ -628,9 +666,10 @@ function start(){
     }
     const tot=a+b+close||1;
     cm.style.width=(100*a/tot)+"%"; cu.style.width=(100*close/tot)+"%"; cw.style.width=(100*b/tot)+"%";
-    const la=seeker.on?"favorable":"male", lb=seeker.on?"tough":"female";
+    const la=seeker.on?"easier than US":"male", lb=seeker.on?"harder":"female",
+          lc=seeker.on?"≈ national":"too close";
     cm.textContent=a>10?a+" "+la:a||"";
-    cu.textContent=close>20?close+" too close":(close>6?close:"");
+    cu.textContent=close>20?close+" "+lc:(close>6?close:"");
     cw.textContent=b>10?b+" "+lb:b||"";
   }
   const ageNow=document.getElementById("ageNow"), ageNowSub=document.getElementById("ageNowSub");
@@ -639,7 +678,7 @@ function start(){
   document.getElementById("ageTicks").innerHTML=AGE_LABELS.map((l,i)=>`<span>${i===0?"All":BANDS[i-1].split("-")[0]}</span>`).join("");
 
   function update(animate){
-    if(seeker.on) for(const r of pts) r._sr = (r.code&&AGE.metros[r.code])?seekerData(r):null;
+    if(seeker.on){ seekNational(); for(const r of pts) r._sr = (r.code&&AGE.metros[r.code])?seekerData(r):null; }
     const S = seeker.on ? seekScale : curScale();
     const valf = seeker.on ? seekVal : value;
     const colf = seeker.on ? seekCol : COL;
@@ -651,6 +690,7 @@ function start(){
     (animate?circles.transition().duration(520):circles).attr("r",d=>shown(d)?S(valf(d)):0);
     circles.sort((a,b)=>S(valf(b))-S(valf(a)));
     ageNow.textContent=AGE_LABELS[sel+1]; ageNowSub.textContent=SUBS[sel+1];
+    if(active) tip.innerHTML=tipHTML(active);   // keep an open tooltip fresh across control changes
     drawLabels(); drawLegend(); updateCounter();
   }
 
@@ -706,15 +746,21 @@ function start(){
   function applyKernelDefault(){ const [lo,hi]=kernelRange(); seeker.lo=lo; seeker.hi=hi;
     document.getElementById("seekerLo").value=lo; document.getElementById("seekerHi").value=hi; }
   function seekerLabels(){
+    seekNational();
     document.getElementById("seekerAgeLab").textContent=seeker.age;
     document.getElementById("seekerRangeLab").textContent=seeker.lo+"–"+seeker.hi;
     const oppW=seeker.sex==="m"?"women":"men", rivW=seeker.sex==="m"?"men":"women";
+    const natWarn = natSR && (natSR.noRecip || natSR.accept<0.2)
+      ? `<br><b>⚠</b> Nationally, only <b>${natSR.noRecip?"~0":Math.round(100*natSR.accept)}%</b> of single ${oppW} in this range pair with someone aged ${seeker.age} — this search is thin <i>everywhere</i>; the colors just compare metros within that reality.`
+      : "";
     document.getElementById("seekerHint").innerHTML=
-      `Your <b>market ratio</b> = same-sex rivals ÷ available matches in your range, from PUMS single counts by single year of age. `+
-      `<b>Matches</b> = single ${oppW} aged ${seeker.lo}–${seeker.hi}. <b>Rivals</b> = single ${rivW} weighted by the empirical partner-age gap <b>K</b> `+
-      `— so ${rivW} of nearby ages chasing the same partners are counted, not just your exact age-peers. `+
-      `<b>Favorable</b> means fewer rivals than matches. The default range is the middle 50% of real ${seeker.sex==="m"?"men":"women"}'s partners at your age; drag the sliders to set your own. `+
-      `Covers 222 metros + New York + Los Angeles (not the 5 Connecticut metros or city insets).`;
+      `Your <b>market ratio</b> = same-sex rivals ÷ <b>reciprocal</b> matches in your range, from PUMS single counts by single year of age. `+
+      `<b>Matches</b> = single ${oppW} aged ${seeker.lo}–${seeker.hi}, each discounted by <b>reciprocity</b>: how often ${oppW} of that exact age actually partner with someone aged ${seeker.age} `+
+      `(their age group's partner-age curve <b>K</b>, measured from 70M real couples — realized pairings, so it reflects what happens, not stated preference). `+
+      `<b>Rivals</b> = single ${rivW} of every age, weighted by their own age's K aimed into your range — ${rivW} of nearby ages chasing the same partners count too; no extra discount is applied to rivals because the realized K is already the two-sided outcome. `+
+      `Because the ratio's absolute level depends on how concentrated K is, <b>colors compare each metro to the national market computed the same way for you</b> (shown as "US" in the tooltip) rather than to a fixed 100. `+
+      `The default range is the middle 50% of real ${seeker.sex==="m"?"men":"women"}'s partners at your age; drag the sliders to set your own. `+
+      `Covers 222 metros + New York + Los Angeles (not the 5 Connecticut metros or city insets).${natWarn}`;
   }
   function setSeeker(on){
     seeker.on=on;

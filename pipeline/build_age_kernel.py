@@ -46,6 +46,32 @@ def wquantile(v, w, q):
     cw = (np.cumsum(w) - 0.5*w) / w.sum()
     return float(np.interp(q, cw, v))
 
+def cond_gap(seeker_age, partner_age, wt):
+    """Conditional gap distribution per seeker age (v3 reciprocity needs this):
+    P(partner_age - seeker_age = g | seeker age), smoothed along the age axis with a
+    triangular +-2 window (1,2,3,2,1) to stabilize thin edge cells. Sparse dict output
+    (gaps with p < 1e-4 dropped)."""
+    gap = (partner_age - seeker_age).astype(int)
+    A, G = len(SEEKER_AGES), len(GAPS)
+    H = np.zeros((A, G))
+    ai = (seeker_age - SEEKER_AGES[0]).astype(int)
+    gi = gap - GAPS[0]
+    ok = (ai >= 0) & (ai < A) & (gi >= 0) & (gi < G)
+    np.add.at(H, (ai[ok], gi[ok]), wt[ok])
+    Hs = np.zeros_like(H)
+    for off, w in ((-2, 1), (-1, 2), (0, 3), (1, 2), (2, 1)):
+        if off < 0:   Hs[-off:, :] += w * H[:off, :]
+        elif off > 0: Hs[:-off, :] += w * H[off:, :]
+        else:         Hs += w * H
+    out = {}
+    for i, a in enumerate(SEEKER_AGES):
+        tot = Hs[i].sum()
+        if tot <= 0: continue
+        row = {int(g): round(float(v / tot), 5)
+               for g, v in zip(GAPS, Hs[i]) if v / tot >= 1e-4}
+        if row: out[a] = row
+    return out
+
 def kernel_for(seeker_age, partner_age, wt):
     """-> {age: {p25,p50,p75,mean,n}} over SEEKER_AGES, and gap histogram."""
     by = {}
@@ -83,14 +109,19 @@ def main():
     man, wom, wt = cp.man.to_numpy(), cp.wom.to_numpy(), cp.wt.to_numpy(float)
     m_by, m_gap = kernel_for(man, wom, wt)    # male seeker -> female partner
     w_by, w_gap = kernel_for(wom, man, wt)    # female seeker -> male partner
+    m_cg = cond_gap(man, wom, wt)             # per-age conditional kernels (v3 reciprocity)
+    w_cg = cond_gap(wom, man, wt)
 
     out = {'meta': {'vintage':'ACS 2024 1-year PUMS',
                     'definition':'opposite-sex married/partnered couples (RELSHIPP 20 + 21/22)',
                     'caveat':'realized couples reflect preference AND past availability, not pure '
                              'preference; the tool exposes the range as an adjustable slider.',
+                    'condGap':'P(gap | seeker age), triangular +-2 age smoothing; used for '
+                              'rival aim and reciprocity discounting (v3).',
                     'states': states},
            'bySex': {'m': m_by, 'w': w_by},
-           'gapDist': {'m': m_gap, 'w': w_gap}}
+           'gapDist': {'m': m_gap, 'w': w_gap},
+           'condGap': {'m': m_cg, 'w': w_cg}}
     full = len(states) == len(B.STATES)
     name = 'age_kernel.json' if full else 'age_kernel_subset.json'
     json.dump(out, open(B.DATA / name, 'w'))
