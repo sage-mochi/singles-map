@@ -19,6 +19,11 @@
   h1{font-family:"Fraunces",Georgia,serif;font-weight:500;font-size:clamp(28px,4.6vw,46px);line-height:1.04;margin:0;letter-spacing:-.01em}
   h1 em{font-style:italic;color:var(--ink-soft)}
   .dek{margin:14px 0 0;max-width:64ch;color:var(--ink-soft);font-size:15px}
+  .abstract{background:var(--panel);border:1px solid var(--hair);border-left:3px solid var(--ink);
+    padding:16px 20px;margin:22px 0 0;max-width:860px;font-size:13.5px;line-height:1.66;color:var(--ink-soft)}
+  .abstract b{color:var(--ink)} .abstract em{color:var(--ink)}
+  .abstract .ab-label{font-size:10px;letter-spacing:.2em;text-transform:uppercase;font-weight:600;
+    color:var(--ink-soft);display:block;margin-bottom:7px}
 
   h2.sec{font-family:"Fraunces",serif;font-weight:500;font-size:25px;margin:48px 0 4px;letter-spacing:-.01em}
   .sub{color:var(--ink-soft);font-size:14px;margin:0 0 16px;max-width:66ch}
@@ -145,9 +150,27 @@
 
 <div class="wrap">
   <header>
-    <p class="eyebrow">American Community Survey · 2024 1-Year Estimates</p>
+    <p class="eyebrow">An interactive thesis · American Community Survey · 2024 1-Year Estimates</p>
     <h1>The Singles Map: it's <em>when</em>, not where</h1>
-    <p class="dek">The famous map sizes each metro by its surplus of single men (blue) or single women (red), ages 20–64. But that single number hides the real pattern — the imbalance is driven far more by <em>age</em> than by <em>place</em>. Below: the national age curve first, then the map you can scrub through age by age and watch flip.</p>
+    <p class="dek">The famous map sizes each metro by its surplus of single men (blue) or single women (red), ages 20–64. But that single number hides the real pattern — the imbalance is driven far more by <em>age</em> than by <em>place</em>. That correction is chapter one: below it, a matchmaking view measures <em>your</em> market, where who you are and what you seek matter more than either when or where.</p>
+    <div class="abstract">
+      <span class="ab-label">Abstract</span>
+      The 2007 National Geographic "Singles Map" advised singles to move wherever their target
+      sex is in surplus. Rebuilding it on 2024 Census data — published tables plus person-level
+      microdata — we find that advice fails twice. First, the aggregate imbalance is set by age,
+      not place: nearly every metro tilts male among singles in their twenties and female past
+      45, flipping around 40. Second, the same-age sex ratio mismeasures any <em>individual's</em>
+      market, because partnering is cross-age and assortative. From 70 million observed couples
+      we measure who actually pairs with whom by age and race, and compute each seeker's market —
+      rivals per <em>reciprocal</em> match — for every metro, with margins of error from the
+      Census replicate weights. The levers of a single person's market rank: <b>(1) who you
+      are</b> — a 30-year-old man faces ~152 rivals per 100 reciprocal matches nationally, a
+      30-year-old woman ~131; <b>(2) what you seek</b> — income and cross-race filters move
+      markets by multiples; <b>(3) when you are in life</b> — the age flip; <b>(4) where you
+      live</b> — typically ±10–15% around the national benchmark, <em>with "where" climbing the
+      ranks as the search narrows</em>. The map below is the argument, interactive: every claim
+      can be scrubbed, filtered, and checked against its uncertainty.
+    </div>
   </header>
 
   <h2 class="sec">The whole country flips around 40</h2>
@@ -1017,6 +1040,7 @@ function start(){
   /* notes */
   document.getElementById("notes").innerHTML=`
    <p><b>Why this fixes the original.</b> The 2007 map's implicit advice — move to the city with your favored surplus — barely survives contact with the age curve above. At 25–29, single men outnumber single women in 201 of 229 metros; by 60–64 women lead in 205 of 229. Almost everywhere is blue when young and red when old. Where you are nudges the number; how old you are sets the sign.</p>
+   <p><b>The narrower the search, the more geography matters.</b> The headline — age outweighs place — is most true for the <i>broadest</i> searchers: under the matchmaking view with default settings, most metros sit within roughly ±10–15% of the national market, and many differences fall inside the margin of error. Narrow the search — a specific race, an unusual age range, a high income floor — and the metro spread widens to <i>multiples</i>, in both market ratio and raw pool size (a targeted pool can be thirty times larger in one metro than another). So the honest hierarchy runs: who you are, then what you seek, then when you are in life, then where you live — with <i>where</i> climbing the ranks as the search narrows, though never mattering more than the search itself.</p>
    <p><b>What "single" means.</b> Every unmarried adult — never-married, divorced, separated, or widowed — from table <code>B12002</code>, matching the original National Geographic definition. (Never-married only would tilt nearly every bar and circle blue, since men marry later; the divorced and widowed are what create the female surpluses at older ages.)</p>
    <p><b>What a head-count gap still can't tell you.</b> Three limits no Census table removes: it counts <b>everyone single, not everyone looking</b> — the retired widower and the active dater are one number here; it ignores <b>who's compatible</b> — sexual orientation isn't in these tables, and most people partner near their own age, so a metro's overall surplus rarely matches the pool a given person actually draws from; and it treats <b>"unmarried" as "available,"</b> though many are cohabiting or otherwise partnered. Read it as a demographic portrait, not dating odds.</p>
    <p><b>Three ways to size the circles.</b> <b>Absolute gap</b> is the original's metric — raw head-count difference, which rewards big metros. The other two normalize for size and, as a result, rank metros identically: <b>per 1,000 singles</b> expresses the gap as a share of the local single pool, while <b>men per 100 women</b> is the plain sex ratio — the most readable apples-to-apples number (100 = parity, 130 = thirty percent more men, 77 = its mirror image for women). The ratio view is sized by the log of the ratio, so an equal imbalance on either side draws an equal circle.</p>
