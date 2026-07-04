@@ -1,5 +1,7 @@
 # Singles Map
 
+**🔗 Live site: https://sage-mochi.github.io/singles-map/**
+
 An interactive, **city/metro-level** tool that singles — particularly young men — can use to compare U.S. metros by single-population sex ratio, built on U.S. Census ACS data. An evolution of the 2007 National Geographic / Richard Florida "Singles Map," rebuilt on current data with explicit margins of error.
 
 **Framing:** geography is the *secondary* lever — age and life stage move the single sex ratio far more than which metro you pick, and every metro still has more single men than women at 25–34. The tool surfaces the few places the ratio measurably tilts favorably; it does not promise that moving transforms anyone's odds.
