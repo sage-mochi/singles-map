@@ -17,29 +17,63 @@ import sys, io, json, pickle, zipfile
 import numpy as np, pandas as pd
 import build_pums_bulk as B
 
-COLS = ['SERIALNO', 'RELSHIPP', 'AGEP', 'SEX', 'PWGTP']
+COLS = ['SERIALNO', 'RELSHIPP', 'AGEP', 'SEX', 'PWGTP', 'RAC1P', 'HISP']
 SEEKER_AGES = list(range(18, 76))
 GAPS = list(range(-20, 21))          # partner_age - seeker_age
+RACES = ['white', 'black', 'asian', 'hisp', 'two', 'other']
+
+def recode_race(df):
+    """Mutually-exclusive race, identical to build_pums_bulk: Hispanic first."""
+    return np.select(
+        [df.HISP != 1, df.RAC1P == 1, df.RAC1P == 2, df.RAC1P == 6, df.RAC1P == 9],
+        ['hisp', 'white', 'black', 'asian', 'two'], default='other')
 
 def couples_state(st):
-    pkl = B.CACHE / f'couples_{st}.pkl'
+    pkl = B.CACHE / f'couples2_{st}.pkl'          # v2 cache: adds race
     if pkl.exists():
         return pickle.load(open(pkl, 'rb'))
     z = zipfile.ZipFile(B.fetch_zip(st))
     member = next(n for n in z.namelist() if n.lower().endswith('.csv'))
     df = pd.read_csv(io.BytesIO(z.read(member)), usecols=COLS, low_memory=False)
-    df = df[df.RELSHIPP.isin([20, 21, 22])]
-    ref = df[df.RELSHIPP == 20][['SERIALNO','AGEP','SEX','PWGTP']].rename(
-            columns={'AGEP':'a0','SEX':'s0','PWGTP':'wt'})
-    par = df[df.RELSHIPP.isin([21, 22])][['SERIALNO','AGEP','SEX']].rename(
-            columns={'AGEP':'a1','SEX':'s1'})
+    df = df[df.RELSHIPP.isin([20, 21, 22])].copy()
+    df['rc'] = recode_race(df)
+    ref = df[df.RELSHIPP == 20][['SERIALNO','AGEP','SEX','PWGTP','rc']].rename(
+            columns={'AGEP':'a0','SEX':'s0','PWGTP':'wt','rc':'rc0'})
+    par = df[df.RELSHIPP.isin([21, 22])][['SERIALNO','AGEP','SEX','rc']].rename(
+            columns={'AGEP':'a1','SEX':'s1','rc':'rc1'})
     cp = ref.merge(par, on='SERIALNO')
     cp = cp[cp.s0 != cp.s1]                       # opposite-sex pairs only
-    man = np.where(cp.s0 == 1, cp.a0, cp.a1)
-    wom = np.where(cp.s0 == 2, cp.a0, cp.a1)
-    out = pd.DataFrame({'man': man, 'wom': wom, 'wt': cp.wt.values})
+    man  = np.where(cp.s0 == 1, cp.a0, cp.a1)
+    wom  = np.where(cp.s0 == 2, cp.a0, cp.a1)
+    manr = np.where(cp.s0 == 1, cp.rc0, cp.rc1)
+    womr = np.where(cp.s0 == 2, cp.rc0, cp.rc1)
+    out = pd.DataFrame({'man': man, 'wom': wom, 'manr': manr, 'womr': womr,
+                        'wt': cp.wt.values})
     pickle.dump(out, open(pkl, 'wb'))
     return out
+
+def race_tables(cp):
+    """Race-pairing tables from the couples. Returns:
+    - pair: P(partner race | own race, own sex) — realized shares (already mutual);
+      used for RIVAL aim, exactly like the realized age kernel.
+    - aff: affinity = P(q,r) / (P(q)·P(r)) — observed over expected under random
+      mixing, so group SIZE is factored out (raw shares would double-count local
+      composition when applied to metro pools). Symmetric in the pair by
+      construction — the two-directional reciprocity is one number.
+      Keyed [womanRace][manRace]."""
+    tbl = cp.groupby(['womr', 'manr']).wt.sum().unstack(fill_value=0.0)
+    tbl = tbl.reindex(index=RACES, columns=RACES, fill_value=0.0)
+    joint = tbl / tbl.values.sum()
+    pw, pm = joint.sum(axis=1), joint.sum(axis=0)
+    aff = joint.div(pw, axis=0).div(pm, axis=1)
+    pair_m = {r: {q: round(float(joint.loc[q, r] / pm[r]), 5) for q in RACES}
+              for r in RACES if pm[r] > 0}          # men of race r -> partner q
+    pair_w = {q: {r: round(float(joint.loc[q, r] / pw[q]), 5) for r in RACES}
+              for q in RACES if pw[q] > 0}          # women of race q -> partner r
+    return ({'m': pair_m, 'w': pair_w},
+            {q: {r: round(float(aff.loc[q, r]), 4) for r in RACES} for q in RACES},
+            {'w': {q: round(float(pw[q]), 5) for q in RACES},
+             'm': {r: round(float(pm[r]), 5) for r in RACES}})
 
 def wquantile(v, w, q):
     o = np.argsort(v); v, w = v[o], w[o]
@@ -111,6 +145,7 @@ def main():
     w_by, w_gap = kernel_for(wom, man, wt)    # female seeker -> male partner
     m_cg = cond_gap(man, wom, wt)             # per-age conditional kernels (v3 reciprocity)
     w_cg = cond_gap(wom, man, wt)
+    race_pair, race_aff, race_marg = race_tables(cp)
 
     out = {'meta': {'vintage':'ACS 2024 1-year PUMS',
                     'definition':'opposite-sex married/partnered couples (RELSHIPP 20 + 21/22)',
@@ -118,10 +153,15 @@ def main():
                              'preference; the tool exposes the range as an adjustable slider.',
                     'condGap':'P(gap | seeker age), triangular +-2 age smoothing; used for '
                               'rival aim and reciprocity discounting (v3).',
+                    'race':'racePair = P(partner race | own race, sex), realized shares '
+                           '(rival aim); raceAff = joint/(marginal*marginal) affinity, '
+                           'group size factored out, symmetric (reciprocity). National; '
+                           'age-gap and race treated as independent factors.',
                     'states': states},
            'bySex': {'m': m_by, 'w': w_by},
            'gapDist': {'m': m_gap, 'w': w_gap},
-           'condGap': {'m': m_cg, 'w': w_cg}}
+           'condGap': {'m': m_cg, 'w': w_cg},
+           'racePair': race_pair, 'raceAff': race_aff, 'raceMarg': race_marg}
     full = len(states) == len(B.STATES)
     name = 'age_kernel.json' if full else 'age_kernel_subset.json'
     json.dump(out, open(B.DATA / name, 'w'))
@@ -133,6 +173,13 @@ def main():
     print('=== female seeker -> partner age ===')
     for a in (25, 30, 40, 50):
         if a in w_by: r=w_by[a]; print(f'  woman {a}: men {r["p25"]}-{r["p75"]} (median {r["p50"]}, mean {r["mean"]})')
+    print('=== race pairing (realized shares, men -> partner) ===')
+    for r in RACES:
+        row = race_pair['m'].get(r, {})
+        top = sorted(row.items(), key=lambda x: -x[1])[:3]
+        print(f'  {r:6s} men: ' + '  '.join(f'{q} {100*v:.1f}%' for q, v in top))
+    print('=== own-race affinity (obs/expected under random mixing) ===')
+    print('  ' + '  '.join(f'{q}:{race_aff[q][q]:.1f}' for q in RACES))
 
 if __name__ == '__main__':
     main()

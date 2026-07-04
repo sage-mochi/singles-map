@@ -51,6 +51,7 @@
   .seeker-field{display:flex;flex-direction:column;gap:3px;min-width:200px;flex:1}
   .seeker-field label{font-size:12px;color:var(--ink-soft)} .seeker-field label b{color:var(--ink)}
   .dual{display:flex;gap:8px} .dual input{flex:1}
+  .seg.segoff button:not([data-sr="any"]){opacity:.4;cursor:not-allowed}
   .age-row{display:flex;align-items:center;gap:14px;margin:0 0 14px;flex-wrap:wrap}
   .age-slider{flex:1;min-width:240px;display:flex;flex-direction:column;gap:4px}
   .racehint{display:none;font-size:12px;color:var(--ink-soft);max-width:92ch;margin:6px 0 12px;padding-left:10px;border-left:2px solid var(--hair)}
@@ -204,6 +205,28 @@
         <label>Open to partners aged <b id="seekerRangeLab">28–31</b></label>
         <div class="dual"><input type="range" id="seekerLo" min="18" max="70" step="1" value="28">
         <input type="range" id="seekerHi" min="18" max="70" step="1" value="31"></div>
+      </div>
+    </div>
+    <div class="seeker-row">
+      <span class="lab">I am</span>
+      <div class="seg" id="seekerMyRace" role="group" aria-label="Your race">
+        <button data-mr="none" aria-pressed="true">—</button>
+        <button data-mr="white">White</button>
+        <button data-mr="black">Black</button>
+        <button data-mr="asian">Asian</button>
+        <button data-mr="hisp">Hispanic</button>
+        <button data-mr="two">Two+</button>
+        <button data-mr="other">Other</button>
+      </div>
+      <span class="lab">Seeking</span>
+      <div class="seg" id="seekerSeekRace" role="group" aria-label="Target races (multi-select)">
+        <button data-sr="any" aria-pressed="true">Any</button>
+        <button data-sr="white">White</button>
+        <button data-sr="black">Black</button>
+        <button data-sr="asian">Asian</button>
+        <button data-sr="hisp">Hispanic</button>
+        <button data-sr="two">Two+</button>
+        <button data-sr="other">Other</button>
       </div>
     </div>
     <p class="racehint show" id="seekerHint"></p>
@@ -446,7 +469,8 @@ function start(){
   };
 
   let mode="abs", sel=-1, race="all", econ="all"; // sel -1 = all ages
-  const seeker={on:false, sex:"m", age:30, lo:28, hi:31};   // matchmaking mode
+  const seeker={on:false, sex:"m", age:30, lo:28, hi:31,
+                myRace:"none", seek:new Set(["any"])};      // matchmaking mode
   const scaleKey=()=>sel<0?"all":"band"; // all lenses are age-resolved now (econ + PUMS race)
   const pumsLens=()=>econ!=="all"||race!=="all"||seeker.on;
   // NY/LA metro circles (pumsOnly) show only under a PUMS lens; their city-place
@@ -469,19 +493,61 @@ function start(){
   const seekScale=d3.scaleSqrt().domain([0,0.6]).range([0,27]);
   const CG=KERNEL.condGap, cgPeak={m:{},w:{}};
   for(const s of ["m","w"]) for(const a in CG[s]) cgPeak[s][a]=Math.max(...Object.values(CG[s][a]));
-  function seekCalc(opp,oppMoe,same,sameMoe){
+  /* ---- race filter (two-directional, per the same logic as age) ----
+     raceOn: user declared their race AND picked target race(s).
+     matches: singles of the target races, additionally discounted by RACE
+       reciprocity = mutual affinity of (their race, your race) — observed couples
+       over expected under random mixing, so group size is factored out — relative
+       to the best-matched race for that group (own-race ~ 1).
+     rivals: same-sex singles of EVERY race, aim-weighted by their race's realized
+       share of partnerships with the target races (realized = already two-sided,
+       so no extra discount — same argument as the age kernel).
+     Age-gap and race are treated as independent factors, measured nationally. */
+  const RACES6=["white","black","asian","hisp","two","other"];
+  const RSHORT={white:"White",black:"Black",asian:"Asian",hisp:"Hispanic",two:"Two+",other:"Other"};
+  const raceOn=()=> seeker.myRace!=="none" && !seeker.seek.has("any");
+  function affN(q){                     // reciprocity of target race q with seeker's race
+    const A=KERNEL.raceAff; let mx=0;
+    if(seeker.sex==="m"){ for(const r of RACES6) mx=Math.max(mx,A[q][r]); return mx>0?(A[q][seeker.myRace]||0)/mx:0; }
+    for(const w of RACES6) mx=Math.max(mx,A[w][q]);
+    return mx>0?(A[seeker.myRace][q]||0)/mx:0;
+  }
+  function buildInputs(node){           // -> arrays the core metric runs on
+    const O=seeker.sex==="m"?"w":"m", S=seeker.sex;
+    if(!raceOn())
+      return {oppRaw:node[O], oppEff:node[O], oppV:node[O+"_moe"].map(v=>v*v),
+              same:node[S], sameV:node[S+"_moe"].map(v=>v*v)};
+    if(!node.race) return null;
+    const targets=[...seeker.seek];
+    const oppRaw=new Array(45).fill(0), oppEff=new Array(45).fill(0), oppV=new Array(45).fill(0),
+          same=new Array(45).fill(0), sameV=new Array(45).fill(0);
+    for(const q of targets){
+      const w=affN(q), src=node.race[q]&&node.race[q][O]; if(!src) continue;
+      for(const ag in src){ const i=ag-20; oppRaw[i]+=src[ag][0]; oppEff[i]+=src[ag][0]*w; oppV[i]+=(src[ag][1]*w)**2; }
+    }
+    for(const r of RACES6){
+      let aim=0; const row=KERNEL.racePair[S][r]||{};
+      for(const q of targets) aim+=row[q]||0;
+      if(!aim) continue;
+      const src=node.race[r]&&node.race[r][S]; if(!src) continue;
+      for(const ag in src){ const i=ag-20; same[i]+=src[ag][0]*aim; sameV[i]+=(src[ag][1]*aim)**2; }
+    }
+    return {oppRaw,oppEff,oppV,same,sameV};
+  }
+  function seekCalc(node){
+    const inp=buildInputs(node); if(!inp) return null;
     const O = seeker.sex==="m"?"w":"m";
     const lo=Math.max(0,seeker.lo-20), hi=Math.min(44,seeker.hi-20);
     let matches=0,mEff=0,mM2=0,rivals=0,rM2=0;
     for(let a=lo;a<=hi;a++){
       const aAge=a+20;
-      const ko=CG[O][aAge], w=ko ? (ko[seeker.age-aAge]||0)/cgPeak[O][aAge] : 0;  // reciprocity
-      matches+=opp[a]; mEff+=opp[a]*w; mM2+=(oppMoe[a]*w)**2;
+      const ko=CG[O][aAge], w=ko ? (ko[seeker.age-aAge]||0)/cgPeak[O][aAge] : 0;  // age reciprocity
+      matches+=inp.oppRaw[a]; mEff+=inp.oppEff[a]*w; mM2+=inp.oppV[a]*w*w;
       let D=0,dM2=0;
       for(let b=0;b<45;b++){
         const ks=CG[seeker.sex][b+20]; if(!ks)continue;
         const g=ks[aAge-(b+20)]; if(!g)continue;
-        D+=same[b]*g; dM2+=(sameMoe[b]*g)**2;
+        D+=inp.same[b]*g; dM2+=inp.sameV[b]*g*g;
       }
       rivals+=D; rM2+=dM2;
     }
@@ -493,23 +559,25 @@ function start(){
   }
   function seekerData(r){
     const x=r.code?AGE.metros[r.code]:null; if(!x) return null;
-    const opp = seeker.sex==="m"?x.w:x.m,  oppMoe = seeker.sex==="m"?x.w_moe:x.m_moe;
-    const same= seeker.sex==="m"?x.m:x.w,  sameMoe= seeker.sex==="m"?x.m_moe:x.w_moe;
-    return seekCalc(opp,oppMoe,same,sameMoe);
+    return seekCalc(x);
   }
   /* National benchmark for the current seeker settings. The absolute level of the
-     v3 ratio depends on kernel concentration and range width (a balanced metro
+     ratio depends on kernel concentration and range width (a balanced metro
      doesn't read exactly 100), so favorable/tough is judged RELATIVE to the same
-     computation on the national age distribution — model constants cancel; what
-     remains is geography. The raw ratio + acceptance stay visible in the tooltip. */
-  const NATAGE={m:new Array(45).fill(0), w:new Array(45).fill(0)};
-  for(const cb in AGE.metros){const x=AGE.metros[cb]; for(let i=0;i<45;i++){NATAGE.m[i]+=x.m[i]; NATAGE.w[i]+=x.w[i];}}
-  const Z45=new Array(45).fill(0);
+     computation on the national age(+race) distribution — model constants cancel;
+     what remains is geography. Raw ratio + acceptance stay visible in the tooltip. */
+  const NATAGE={m:new Array(45).fill(0), w:new Array(45).fill(0),
+                m_moe:new Array(45).fill(0), w_moe:new Array(45).fill(0), race:{}};
+  for(const cb in AGE.metros){const x=AGE.metros[cb];
+    for(let i=0;i<45;i++){NATAGE.m[i]+=x.m[i]; NATAGE.w[i]+=x.w[i];}
+    if(x.race) for(const q in x.race) for(const s in x.race[q]){
+      const rq = NATAGE.race[q] || (NATAGE.race[q]={});
+      const dst = rq[s] || (rq[s]={});
+      const src = x.race[q][s];
+      for(const ag in src){ (dst[ag]=dst[ag]||[0,0])[0]+=src[ag][0]; }   // national MOE ~0
+    }}
   let natSR=null;
-  function seekNational(){
-    const opp=seeker.sex==="m"?NATAGE.w:NATAGE.m, same=seeker.sex==="m"?NATAGE.m:NATAGE.w;
-    natSR=seekCalc(opp,Z45,same,Z45);
-  }
+  function seekNational(){ natSR=seekCalc(NATAGE); }
   const natRef=()=> (natSR&&!natSR.noRecip)?natSR.ratio:100;
   const seekVal=r=> !r._sr?0 : r._sr.noRecip?0.3 : Math.min(Math.abs(Math.log(r._sr.ratio/natRef())),0.6);
   const seekCol=r=> r._sr? (r._sr.ratio<natRef()?SEEK_FAV:SEEK_TOUGH):"#ccc";
@@ -530,21 +598,24 @@ function start(){
       const sr = r._sr || ((r.code&&AGE.metros[r.code])?seekerData(r):null);
       if(!sr) return `<div class="hd">${r.full}</div><div class="tg"><span class="k">your market</span><b>no PUMS estimate</b></div>${cnote}`;
       const oppW=seeker.sex==="m"?"women":"men", rivW=seeker.sex==="m"?"men":"women";
+      const tgt = raceOn() ? [...seeker.seek].map(q=>RSHORT[q]).join("+")+" " : "";
+      const me  = raceOn() ? ` ${RSHORT[seeker.myRace]}` : "";
       if(sr.noRecip)
         return `<div class="hd">${r.full}</div>
-          <div class="tg"><span class="k">Single ${oppW}, ${seeker.lo}–${seeker.hi}</span><b>${fmt(Math.round(sr.matches))}</b></div>
-          <div class="verdict" style="color:#f0b39c">Effectively none pair with someone ${seeker.age} — no meaningful market at this age gap</div>${cnote}`;
+          <div class="tg"><span class="k">Single ${tgt}${oppW}, ${seeker.lo}–${seeker.hi}</span><b>${fmt(Math.round(sr.matches))}</b></div>
+          <div class="verdict" style="color:#f0b39c">Effectively none pair with a${me} ${seeker.sex==="m"?"man":"woman"} aged ${seeker.age} — no meaningful market for this search</div>${cnote}`;
       const nr=natRef(), fav=sr.ratio<nr, within=Math.abs(sr.ratio-nr)<sr.moe;
       const pct=Math.abs(Math.round(100*(sr.ratio/nr-1)));
       const verdict = within ? `<div class="verdict" style="color:#cdd6d4">About the national market for you — within margin of error</div>`
                     : fav   ? `<div class="verdict" style="color:#8fe6c4">Favorable — ${pct}% fewer rivals per match than the national market for you</div>`
                             : `<div class="verdict" style="color:#f0b39c">Tough — ${pct}% more rivals per match than the national market for you</div>`;
+      const recipLab = raceOn() ? `…open to a${me} ${seeker.age}-yr-old (age+race reciprocity)` : `…open to age ${seeker.age} (reciprocity)`;
       return `<div class="hd">${r.full}</div>
-        <div class="tg"><span class="k">Single ${oppW}, ${seeker.lo}–${seeker.hi}</span><b>${fmt(Math.round(sr.matches))}</b></div>
-        <div class="tg"><span class="k">…open to age ${seeker.age} (reciprocity)</span><b>${fmt(Math.round(sr.mEff))} <span class="moe">(${Math.round(100*sr.accept)}%)</span></b></div>
-        <div class="tg"><span class="k">Competing ${rivW} (kernel-weighted)</span><b>${fmt(Math.round(sr.rivals))}</b></div>
+        <div class="tg"><span class="k">Single ${tgt}${oppW}, ${seeker.lo}–${seeker.hi}</span><b>${fmt(Math.round(sr.matches))}</b></div>
+        <div class="tg"><span class="k">${recipLab}</span><b>${fmt(Math.round(sr.mEff))} <span class="moe">(${Math.round(100*sr.accept)}%)</span></b></div>
+        <div class="tg"><span class="k">Competing ${rivW} (${raceOn()?"all races, ":""}kernel-weighted)</span><b>${fmt(Math.round(sr.rivals))}</b></div>
         <div class="tg"><span class="k">Rivals per 100 reciprocal matches</span><b>${Math.round(sr.ratio)} <span class="moe">±${Math.round(sr.moe)} · US ${Math.round(nr)}</span></b></div>
-        <div class="tg"><span class="k" style="font-size:10.5px">${seeker.sex==="m"?"Man":"Woman"} ${seeker.age}, open to ${seeker.lo}–${seeker.hi}</span></div>${verdict}${cnote}`;
+        <div class="tg"><span class="k" style="font-size:10.5px">${seeker.sex==="m"?"Man":"Woman"} ${seeker.age}${me?" ·"+me:""}, open to ${tgt}${seeker.lo}–${seeker.hi}</span></div>${verdict}${cnote}`;
     }
     if(!hasData(r)){
       const lab = econ!=="all" ? ECONLAB[econ]+" singles" : RLAB[race]+" singles";
@@ -750,8 +821,11 @@ function start(){
     document.getElementById("seekerAgeLab").textContent=seeker.age;
     document.getElementById("seekerRangeLab").textContent=seeker.lo+"–"+seeker.hi;
     const oppW=seeker.sex==="m"?"women":"men", rivW=seeker.sex==="m"?"men":"women";
+    const raceNote = raceOn()
+      ? ` <b>Race filtering</b> adds the same logic in the race dimension: matches are further discounted by <b>race reciprocity</b> — how much more or less often ${[...seeker.seek].map(q=>RSHORT[q]).join("/")} ${oppW} pair with a ${RSHORT[seeker.myRace]} partner than random mixing would produce (group sizes are factored out, so this measures affinity, not who happens to be nearby) — and rivals include ${rivW} of <i>every</i> race, weighted by how often their group actually partners with your target races. Age-gap and race are treated as independent factors, measured nationally (not per metro), from the same realized couples.`
+      : "";
     const natWarn = natSR && (natSR.noRecip || natSR.accept<0.2)
-      ? `<br><b>⚠</b> Nationally, only <b>${natSR.noRecip?"~0":Math.round(100*natSR.accept)}%</b> of single ${oppW} in this range pair with someone aged ${seeker.age} — this search is thin <i>everywhere</i>; the colors just compare metros within that reality.`
+      ? `<br><b>⚠</b> Nationally, only <b>${natSR.noRecip?"~0":Math.round(100*natSR.accept)}%</b> of single ${raceOn()?[...seeker.seek].map(q=>RSHORT[q]).join("/")+" ":""}${oppW} in this range pair with someone like you (age${raceOn()?" + race":""}) — this search is thin <i>everywhere</i>; the colors just compare metros within that reality.`
       : "";
     document.getElementById("seekerHint").innerHTML=
       `Your <b>market ratio</b> = same-sex rivals ÷ <b>reciprocal</b> matches in your range, from PUMS single counts by single year of age. `+
@@ -759,14 +833,14 @@ function start(){
       `(their age group's partner-age curve <b>K</b>, measured from 70M real couples — realized pairings, so it reflects what happens, not stated preference). `+
       `<b>Rivals</b> = single ${rivW} of every age, weighted by their own age's K aimed into your range — ${rivW} of nearby ages chasing the same partners count too; no extra discount is applied to rivals because the realized K is already the two-sided outcome. `+
       `Because the ratio's absolute level depends on how concentrated K is, <b>colors compare each metro to the national market computed the same way for you</b> (shown as "US" in the tooltip) rather than to a fixed 100. `+
-      `The default range is the middle 50% of real ${seeker.sex==="m"?"men":"women"}'s partners at your age; drag the sliders to set your own. `+
+      `The default range is the middle 50% of real ${seeker.sex==="m"?"men":"women"}'s partners at your age; drag the sliders to set your own.`+raceNote+` `+
       `Covers 222 metros + New York + Los Angeles (not the 5 Connecticut metros or city insets).${natWarn}`;
   }
   function setSeeker(on){
     seeker.on=on;
     [...document.querySelectorAll("#seekerToggle button")].forEach(x=>x.setAttribute("aria-pressed",(x.dataset.s==="on")===on));
     seekControls.style.display=on?"block":"none";
-    if(on){ econ="all"; race="all"; setEconUI(); setRaceUI(); applyKernelDefault(); seekerLabels(); }
+    if(on){ econ="all"; race="all"; setEconUI(); setRaceUI(); applyKernelDefault(); setSeekRaceUI(); seekerLabels(); }
     update(true);
   }
   document.getElementById("seekerToggle").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b)return; setSeeker(b.dataset.s==="on"); });
@@ -778,6 +852,30 @@ function start(){
     if(lo>hi){ const t=lo; lo=hi; hi=t; } seeker.lo=lo; seeker.hi=hi; seekerLabels(); update(true); }
   document.getElementById("seekerLo").addEventListener("input",seekRange);
   document.getElementById("seekerHi").addEventListener("input",seekRange);
+  /* race filter: "Seeking" requires "I am" (reciprocity is undefined without it) */
+  function setSeekRaceUI(){
+    [...document.querySelectorAll("#seekerMyRace button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.mr===seeker.myRace));
+    [...document.querySelectorAll("#seekerSeekRace button")].forEach(x=>x.setAttribute("aria-pressed",seeker.seek.has(x.dataset.sr)));
+    document.getElementById("seekerSeekRace").classList.toggle("segoff",seeker.myRace==="none");
+  }
+  document.getElementById("seekerMyRace").addEventListener("click",e=>{
+    const b=e.target.closest("button"); if(!b)return;
+    seeker.myRace=b.dataset.mr;
+    if(seeker.myRace==="none") seeker.seek=new Set(["any"]);
+    setSeekRaceUI(); seekerLabels(); update(true);
+  });
+  document.getElementById("seekerSeekRace").addEventListener("click",e=>{
+    const b=e.target.closest("button"); if(!b)return;
+    const v=b.dataset.sr;
+    if(v==="any") seeker.seek=new Set(["any"]);
+    else{
+      if(seeker.myRace==="none") return;               // pick "I am" first
+      seeker.seek.delete("any");
+      if(seeker.seek.has(v)) seeker.seek.delete(v); else seeker.seek.add(v);
+      if(!seeker.seek.size) seeker.seek=new Set(["any"]);
+    }
+    setSeekRaceUI(); seekerLabels(); update(true);
+  });
 
   update(false);
 

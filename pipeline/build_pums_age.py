@@ -16,16 +16,23 @@ import numpy as np, pandas as pd
 import build_pums_bulk as B          # fetch_zip / read_state / load_xwalk_long / allocate / WCOLS / STATES
 
 AGES = list(range(20, 65))           # 45 single-year cells, matching the single 20-64 universe
+RACES = ['white', 'black', 'asian', 'hisp', 'two', 'other']
 
 def aggregate_age_state(st):
-    pkl = B.CACHE / f'aggage_{st}.pkl'
+    """PUMA x single-year-age x sex x RACE aggregate (all 81 weight cols). The
+    sex-level totals are recovered by summing the race cells (replicate columns
+    are linear, so both levels keep exact SDR MOEs)."""
+    pkl = B.CACHE / f'aggage2_{st}.pkl'          # v2 cache: adds race
     if pkl.exists():
         return pickle.load(open(pkl, 'rb'))
     df = B.read_state(st)
     df = df[(df.MAR != 1) & (df.AGEP >= 20) & (df.AGEP < 65)].copy()   # single 20-64
     df['pkey'] = df.STATE.str.zfill(2) + df.PUMA.str.zfill(5)
     df['sex']  = np.where(df.SEX == 1, 'm', 'w')
-    agg = df.groupby(['pkey', 'AGEP', 'sex'], observed=True)[B.WCOLS].sum()
+    df['race'] = np.select(
+        [df.HISP != 1, df.RAC1P == 1, df.RAC1P == 2, df.RAC1P == 6, df.RAC1P == 9],
+        ['hisp', 'white', 'black', 'asian', 'two'], default='other')
+    agg = df.groupby(['pkey', 'AGEP', 'sex', 'race'], observed=True)[B.WCOLS].sum()
     pickle.dump(agg, open(pkl, 'wb'))
     return agg
 
@@ -42,7 +49,8 @@ def main():
         sys.stdout.write(st + ' '); sys.stdout.flush()
         if (i + 1) % 13 == 0: print()
     print('\nstates aggregated.')
-    nat = pd.concat(parts).groupby(['pkey', 'AGEP', 'sex'], observed=True).sum()
+    nat_race = pd.concat(parts).groupby(['pkey', 'AGEP', 'sex', 'race'], observed=True).sum()
+    nat = nat_race.groupby(['pkey', 'AGEP', 'sex'], observed=True).sum()   # exact (linear)
 
     alloc = B.allocate(nat, xwl, ['AGEP', 'sex'])      # -> cbsa, AGEP, sex, est, moe
     alloc = alloc[alloc.cbsa != 'NONMETRO']
@@ -55,10 +63,23 @@ def main():
         node[r.sex][a-20]       = round(r.est)
         node[f'{r.sex}_moe'][a-20] = round(r.moe)
 
+    # race x single-year cells (seeker-mode race filter), sparse: {race:{sex:{age:[est,moe]}}}
+    alloc_r = B.allocate(nat_race, xwl, ['AGEP', 'sex', 'race'])
+    alloc_r = alloc_r[alloc_r.cbsa != 'NONMETRO']
+    for _, r in alloc_r.iterrows():
+        a = int(r.AGEP)
+        if a < 20 or a > 64: continue
+        est = round(r.est)
+        if est <= 0: continue                      # sparse: zero cells dropped
+        node = metros.setdefault(r.cbsa, {'m':[0]*45,'w':[0]*45,'m_moe':[0]*45,'w_moe':[0]*45})
+        node.setdefault('race', {}).setdefault(r.race, {}).setdefault(r.sex, {})[a] = \
+            [est, round(r.moe)]
+
     out = {'meta': {'vintage':'ACS 2024 1-year PUMS',
                     'ages': AGES,
                     'note':'single (MAR!=1) men/women by single year of age, per CBSA; '
-                           'MOE 90% from 80 replicate weights (SDR).',
+                           'MOE 90% from 80 replicate weights (SDR). race = sparse '
+                           'mutually-exclusive race cells {race:{sex:{age:[est,moe]}}}.',
                     'states': states},
            'metros': metros}
     full = len(states) == len(B.STATES)
