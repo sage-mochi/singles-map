@@ -17,7 +17,6 @@ ROOT = Path(__file__).resolve().parent.parent          # repo root (script lives
 INJECT = {
     "__DATA__":     "byage_min.json",
     "__STATES__":   "states_v2.json",
-    "__RTABLES__":  "ratio_tables2.json",
     "__ANALYSIS__": "analysis_data.json",
     "__M3__":       "pums_metro_m3.json",   # PUMS cross-tabs (economic/race/edu) + MOE
     "__AGE__":      "pums_metro_age.json",  # single-year-of-age single counts + MOE (seeker mode)

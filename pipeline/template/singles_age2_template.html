@@ -125,6 +125,8 @@
   .party-key{font-size:11.5px;color:var(--ink-soft);display:flex;gap:16px;align-items:center;margin:10px 0 0}
   .party-key b.r{color:#C0392B} .party-key b.d{color:#2960A8}
   table.rt .ratio{font-weight:600;color:var(--women);font-variant-numeric:tabular-nums;white-space:nowrap}
+  table.rt .moe2{color:var(--ink-soft);font-weight:400;font-size:10px;margin-left:3px}
+  table.rt .tie{color:var(--ink-soft);font-weight:600;margin-left:2px;cursor:help}
   table.rt .cnt{color:var(--ink-soft);font-variant-numeric:tabular-nums}
   .rbar{display:inline-block;height:5px;background:var(--women);border-radius:3px;vertical-align:middle;margin-left:6px;opacity:.55}
   :root{--hair-soft:#ECEBE3}
@@ -173,14 +175,14 @@
     </div>
   </header>
 
-  <h2 class="sec">The whole country flips around 40</h2>
-  <p class="sub">National single men minus single women, by age, summed across all 229 metros. Young singles skew male almost everywhere; older singles skew female almost everywhere. The crossover sits at roughly 40–44.</p>
+  <h2 class="sec">§1 · The whole country flips around 40</h2>
+  <p class="sub"><b>Claim: the aggregate imbalance is set by age, not place.</b> National single men minus single women, by age, summed across all 229 metros. Young singles skew male almost everywhere; older singles skew female almost everywhere. The crossover sits at roughly 40–44.</p>
   <div class="figure">
     <svg id="flip" viewBox="0 0 960 360" role="img" aria-label="National gender gap among singles by age"></svg>
   </div>
 
-  <h2 class="sec">The same flip, on the map</h2>
-  <p class="sub">Drag the slider or press play to move through age bands. Watch the map turn from blue to red — the geography barely changes the story, the age does. Four points are <b>cities, not metros</b> (dashed outline): Los Angeles, Long Beach and Anaheim are split out of their shared metro, and New York City stands alone — hover any of them for the geography caveat.</p>
+  <h2 class="sec">§2 · The same flip, on the map — and your own market</h2>
+  <p class="sub"><b>Claim: where you live nudges the number; who you are and what you seek set it.</b> Drag the slider or press play and watch the map turn from blue to red — geography barely changes the story, age does. Then switch on the <b>matchmaking view</b> to measure <i>your</i> market: rivals per reciprocal match for your age, sex, race and search range. Four points are <b>cities, not metros</b> (dashed outline): Los Angeles, Long Beach and Anaheim are split out of their shared metro, and New York City stands alone — hover any of them for the geography caveat.</p>
 
   <div class="toolbar" style="margin-bottom:2px">
     <span class="lab">Race / origin</span>
@@ -284,13 +286,22 @@
     <svg id="map" viewBox="0 0 960 648" role="img" aria-label="Map of US metros by single-gender imbalance"></svg>
   </div>
 
-  <footer>
-    <span><b>Source.</b> U.S. Census Bureau, ACS 2024 1-Year Estimates, table B12002 (never-married + divorced + separated + widowed). Coordinates: Census CBSA Gazetteer.</span>
-    <span>227 metro areas + 4 city insets</span>
-  </footer>
+  <h2 class="sec">§3 · The mechanism: women marry earlier — and marry older men</h2>
+  <p class="sub"><b>Claim: one mechanism drives both halves of the map — and the matchmaking asymmetry above.</b> Three findings, and the decomposition behind the one that puzzles people most.</p>
+  <div class="analysis" id="analysis"></div>
 
-  <h2 class="sec">Where the singles skew hardest, under 40</h2>
-  <p class="sub">A separate, scrollable ranking of the top 100 metros for each under-40 bracket (metros with 8,000+ singles in that bracket). Toggle the direction: the female-heavy list is the set of exceptions to the national male-surplus rule; the male-heavy list is that rule at its most extreme.</p>
+  <h3 class="ah">The puzzle: why are young men the surplus, if births are ~50/50?</h3>
+  <p class="ap" id="puzzleIntro"></p>
+  <div class="chart-pair">
+    <div class="figure"><div class="chart-cap">Single-male surplus, decomposed (national)</div>
+      <svg id="decomp" viewBox="0 0 560 320" role="img" aria-label="Decomposition of the single male surplus"></svg></div>
+    <div class="figure"><div class="chart-cap">Share currently married, by age</div>
+      <svg id="pmchart" viewBox="0 0 560 320" role="img" aria-label="Percent married by age and sex"></svg></div>
+  </div>
+  <div class="ap" id="puzzleBody"></div>
+
+  <h2 class="sec">§4 · The rankings, with their uncertainty</h2>
+  <p class="sub"><b>Exhibits: the extremes of the distribution — with their error bars.</b> Top 100 metros per under-40 bracket, computed from PUMS microdata (metros with 8,000+ singles in the bracket; the five Connecticut metros use published estimates, marked †). Every ratio carries its ±90% margin, and ranks that are not statistically distinguishable from the row above are marked ≈ — the exact order among tied rows is noise. In the <b>matchmaking view</b>, this section becomes <i>your</i> personal ranking.</p>
   <div class="toolbar" style="margin-bottom:8px">
     <span class="lab">Race / origin</span>
     <div class="seg" id="tblRaceSeg" role="group" aria-label="Table race filter">
@@ -313,28 +324,19 @@
   <p class="sub" id="tblNote" style="margin-top:8px;display:none"></p>
   <div class="tbl-grid" id="ratioTables"></div>
 
-  <h2 class="sec">Analysis: what the numbers say</h2>
-  <p class="sub">Three findings, and a hypothesis for the one that puzzles people most.</p>
-  <div class="analysis" id="analysis"></div>
-
-  <h3 class="ah">The puzzle: why are young men the surplus, if births are ~50/50?</h3>
-  <p class="ap" id="puzzleIntro"></p>
-  <div class="chart-pair">
-    <div class="figure"><div class="chart-cap">Single-male surplus, decomposed (national)</div>
-      <svg id="decomp" viewBox="0 0 560 320" role="img" aria-label="Decomposition of the single male surplus"></svg></div>
-    <div class="figure"><div class="chart-cap">Share currently married, by age</div>
-      <svg id="pmchart" viewBox="0 0 560 320" role="img" aria-label="Percent married by age and sex"></svg></div>
-  </div>
-  <div class="ap" id="puzzleBody"></div>
-
+  <h2 class="sec">§5 · Methods, limitations & honest caveats</h2>
   <div class="notes" id="notes"></div>
+
+  <footer>
+    <span><b>Source.</b> U.S. Census Bureau, ACS 2024 1-Year Estimates: table B12002 and PUMS microdata (never-married + divorced + separated + widowed). Coordinates: Census CBSA Gazetteer.</span>
+    <span>227 metro areas + 4 city insets</span>
+  </footer>
 </div>
 
 <div id="tip" role="status" aria-live="polite"></div>
 
 <script>
 const D = __DATA__;
-const RT = __RTABLES__;
 const AN = __ANALYSIS__;
 const STATES = __STATES__;
 const M3 = __M3__;                           // PUMS cross-tabs keyed by CBSA code
@@ -785,7 +787,7 @@ function start(){
     circles.sort((a,b)=>S(valf(b))-S(valf(a)));
     ageNow.textContent=AGE_LABELS[sel+1]; ageNowSub.textContent=SUBS[sel+1];
     if(active) tip.innerHTML=tipHTML(active);   // keep an open tooltip fresh across control changes
-    drawLabels(); drawLegend(); updateCounter();
+    drawLabels(); drawLegend(); updateCounter(); syncTables();
   }
 
   slider.addEventListener("input",()=>{stopPlay(); sel=(+slider.value)-1; update(true);});
@@ -909,29 +911,41 @@ function start(){
   const PARTY={CA:"d",CO:"d",CT:"d",DE:"d",HI:"d",IL:"d",ME:"d",MD:"d",MA:"d",MN:"d",NH:"d",NJ:"d",NM:"d",NY:"d",OR:"d",RI:"d",VT:"d",VA:"d",WA:"d",DC:"d",
     AL:"r",AK:"r",AZ:"r",AR:"r",FL:"r",GA:"r",ID:"r",IN:"r",IA:"r",KS:"r",KY:"r",LA:"r",MI:"r",MS:"r",MO:"r",MT:"r",NE:"r",NV:"r",NC:"r",ND:"r",OH:"r",OK:"r",PA:"r",SC:"r",SD:"r",TN:"r",TX:"r",UT:"r",WV:"r",WI:"r",WY:"r"};
   const stateHTML=st=>st.split("-").map(s=>`<span class="pt-${PARTY[s]||'x'}">${s}</span>`).join("-");
-  // Race rankings are computed live from the PUMS cross-tab (M3), which is the
-  // only source with race x age x metro. "All" keeps the published tables (RT).
-  const RACE_FLOOR=1000;   // min single (of that race) in the band to qualify
+  /* All rankings are computed live from the PUMS cross-tabs (M3), which carry a
+     per-cell MOE — so every ratio gets a ±90% margin and adjacent ranks whose
+     difference falls within the combined margin are marked ≈ (statistical tie).
+     The 5 CT metros lack M3 and fall back to published counts, marked † (no
+     margin, excluded from tie tests). */
+  const RACE_FLOOR=1000, ALL_FLOOR=8000;   // min singles in the band to qualify
   const RLABEL_T={White:"White (non-Hispanic)",Black:"Black",Asian:"Asian",Hispanic:"Hispanic","Two or more":"Two or more races"};
-  function buildRaceTabs(race,dir){
-    const key=RACE_KEY[race], tabs={};
+  function buildTabs(dir,race){
+    const key = race==="all" ? null : RACE_KEY[race];
+    const floor = key ? RACE_FLOOR : ALL_FLOOR;
+    const tabs={};
     for(const b of ORDER){
       const bi=BANDS.indexOf(b), rows=[];
-      for(const r of D.metros){
-        const x=r.code?M3.metros[r.code]:null; if(!x) continue;
-        const node=x.race[key]; if(!node) continue;
-        const m=node.m[bi], w=node.w[bi];
-        if(m<=0||w<=0||m+w<RACE_FLOOR) continue;
-        rows.push({metro:r.n, st:(r.full.split(",").pop()||"").trim(), r:dir==="women"?100*w/m:100*m/w, w, m});
+      for(const d of D.metros){
+        if(d.city) continue;                                  // places, not metros
+        const M=d.code?M3.metros[d.code]:null;
+        let m,w,mm,wm,pub=false;
+        if(key){ if(!M||!M.race[key]) continue; const n=M.race[key];
+          m=n.m[bi]; w=n.w[bi]; mm=n.m_moe[bi]; wm=n.w_moe[bi]; }
+        else if(M){ const n=M.base; m=n.m[bi]; w=n.w[bi]; mm=n.m_moe[bi]; wm=n.w_moe[bi]; }
+        else { m=d.m[bi]; w=d.w[bi]; pub=true; }              // CT: published, no MOE
+        if(!(m>0&&w>0)||m+w<floor) continue;
+        const r=dir==="women"?100*w/m:100*m/w;
+        const moe=pub?null:r*Math.hypot(wm/w,mm/m);
+        rows.push({metro:d.n, st:(d.full.split(",").pop()||"").trim(), r, moe, w, m, pub});
       }
       rows.sort((a,b)=>b.r-a.r);
       tabs[b]={n:rows.length, rows:rows.slice(0,100)};
     }
     return tabs;
   }
+  const TIE_T='rank not statistically distinguishable from the row above (difference within the combined 90% margin)';
   function renderTables(dir,race){
     const wrap=document.getElementById("ratioTables"); wrap.innerHTML="";
-    const tabs = race==="all" ? RT[dir] : buildRaceTabs(race,dir);
+    const tabs = buildTabs(dir,race);
     const colHead=dir==="women"?"Women /100 men":"Men /100 women";
     const accent=dir==="women"?"var(--women)":"var(--men)";
     let maxR=0; ORDER.forEach(b=>tabs[b].rows.forEach(r=>maxR=Math.max(maxR,r.r)));
@@ -942,13 +956,15 @@ function start(){
       let rows="";
       t.rows.forEach((x,i)=>{
         const barW=Math.max(2,Math.round(40*(x.r-100)/(maxR-100)));
-        rows+=`<tr><td class="rank">${i+1}</td>
+        const prev=i>0?t.rows[i-1]:null;
+        const tie=prev&&x.moe!=null&&prev.moe!=null&&Math.abs(x.r-prev.r)<Math.hypot(x.moe,prev.moe);
+        rows+=`<tr><td class="rank">${i+1}${tie?`<span class="tie" title="${TIE_T}">≈</span>`:''}</td>
           <td class="place">${x.metro}<small>${stateHTML(x.st)}</small></td>
-          <td class="num ratio" style="color:${accent}">${x.r.toFixed(0)}<span class="rbar" style="background:${accent};width:${barW}px"></span></td>
+          <td class="num ratio" style="color:${accent}">${x.r.toFixed(0)}${x.moe!=null?`<span class="moe2">±${Math.max(1,Math.round(x.moe))}</span>`:'<span class="moe2" title="published estimate — no PUMS margin">†</span>'}<span class="rbar" style="background:${accent};width:${barW}px"></span></td>
           <td class="num cnt">${fmt(x.w)}</td><td class="num cnt">${fmt(x.m)}</td></tr>`;
       });
       card.innerHTML=`<h3>${TITLES[b]}</h3>
-        <p class="cap">${grp}Top ${t.rows.length} of ${t.n} metros · most single ${dir==="women"?"women per 100 men":"men per 100 women"}</p>
+        <p class="cap">${grp}Top ${t.rows.length} of ${t.n} metros · most single ${dir==="women"?"women per 100 men":"men per 100 women"} · ± = 90% margin · ≈ = tied with row above</p>
         <div class="tbl-scroll"><table class="rt"><thead><tr><th></th><th>Metro</th><th class="num">${colHead}</th><th class="num">Single ♀</th><th class="num">Single ♂</th></tr></thead><tbody>${rows}</tbody></table></div>`;
       wrap.appendChild(card);
     }
@@ -970,6 +986,51 @@ function start(){
     [...document.querySelectorAll("#tblRaceSeg button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.r===tblRace));
     renderTables(tblDir,tblRace);
   });
+
+  /* ---- seeker-mode ranking: §4 becomes your personal table ---- */
+  function renderSeekerTable(){
+    const wrap=document.getElementById("ratioTables"); wrap.innerHTML="";
+    const nr=natRef(), rows=[];
+    for(const d of pts){
+      if(!shown(d)||!d._sr||d._sr.noRecip) continue;
+      const s=d._sr; if(s.mEff<1000) continue;      // floor: 1,000 reciprocal matches
+      rows.push({metro:d.n, st:(d.full.split(",").pop()||"").trim(), r:s.ratio, moe:s.moe, pool:s.mEff});
+    }
+    rows.sort((a,b)=>a.r-b.r);                       // lowest = best market
+    const top=rows.slice(0,30);
+    const card=document.createElement("div"); card.className="tbl-card"; card.style.gridColumn="1 / -1";
+    let html="";
+    top.forEach((x,i)=>{
+      const prev=i>0?top[i-1]:null;
+      const tie=prev&&Math.abs(x.r-prev.r)<Math.hypot(x.moe,prev.moe);
+      const rel=100*(x.r/nr-1);
+      html+=`<tr><td class="rank">${i+1}${tie?`<span class="tie" title="${TIE_T}">≈</span>`:''}</td>
+        <td class="place">${x.metro}<small>${stateHTML(x.st)}</small></td>
+        <td class="num ratio" style="color:var(--ink)">${Math.round(x.r)}<span class="moe2">±${Math.max(1,Math.round(x.moe))}</span></td>
+        <td class="num" style="font-weight:600;color:${rel<0?SEEK_FAV:SEEK_TOUGH}">${rel>0?"+":""}${Math.round(rel)}%</td>
+        <td class="num cnt">${fmt(Math.round(x.pool))}</td></tr>`;
+    });
+    const tgt=raceOn()?[...seeker.seek].map(q=>RSHORT[q]).join("+")+" ":"";
+    const who=`${seeker.sex==="m"?"Man":"Woman"} ${seeker.age}${raceOn()?" ("+RSHORT[seeker.myRace]+")":""}, seeking ${tgt}${seeker.sex==="m"?"women":"men"} ${seeker.lo}–${seeker.hi}`;
+    card.innerHTML=`<h3>Your market, ranked</h3>
+      <p class="cap">${who} · rivals per 100 reciprocal matches, lowest (best) first · US benchmark ${Math.round(nr)} · metros with ≥1,000 reciprocal matches (${rows.length} qualify) · ± = 90% margin · ≈ = tied with row above</p>
+      <div class="tbl-scroll"><table class="rt"><thead><tr><th></th><th>Metro</th><th class="num">Rivals /100</th><th class="num">vs US</th><th class="num">Recip. matches</th></tr></thead><tbody>${html}</tbody></table></div>`;
+    wrap.appendChild(card);
+  }
+  var tblSeeker=false;                               // var: referenced by update() before this line runs
+  function syncTables(){
+    const bars=[document.getElementById("dirSeg").closest(".toolbar"),
+                document.getElementById("tblRaceSeg").closest(".toolbar"),
+                document.querySelector(".party-key")];
+    if(seeker.on){
+      tblSeeker=true; bars.forEach(el=>el.style.display="none");
+      document.getElementById("tblNote").style.display="none";
+      renderSeekerTable();
+    } else if(tblSeeker){
+      tblSeeker=false; bars.forEach(el=>el.style.display="");
+      renderTables(tblDir,tblRace);
+    }
+  }
 
   /* ---- analysis: summary cards + prose ---- */
   (function analysis(){
@@ -1044,7 +1105,7 @@ function start(){
    <p><b>What "single" means.</b> Every unmarried adult — never-married, divorced, separated, or widowed — from table <code>B12002</code>, matching the original National Geographic definition. (Never-married only would tilt nearly every bar and circle blue, since men marry later; the divorced and widowed are what create the female surpluses at older ages.)</p>
    <p><b>What a head-count gap still can't tell you.</b> Three limits no Census table removes: it counts <b>everyone single, not everyone looking</b> — the retired widower and the active dater are one number here; it ignores <b>who's compatible</b> — sexual orientation isn't in these tables, and most people partner near their own age, so a metro's overall surplus rarely matches the pool a given person actually draws from; and it treats <b>"unmarried" as "available,"</b> though many are cohabiting or otherwise partnered. Read it as a demographic portrait, not dating odds.</p>
    <p><b>Three ways to size the circles.</b> <b>Absolute gap</b> is the original's metric — raw head-count difference, which rewards big metros. The other two normalize for size and, as a result, rank metros identically: <b>per 1,000 singles</b> expresses the gap as a share of the local single pool, while <b>men per 100 women</b> is the plain sex ratio — the most readable apples-to-apples number (100 = parity, 130 = thirty percent more men, 77 = its mirror image for women). The ratio view is sized by the log of the ratio, so an equal imbalance on either side draws an equal circle.</p>
-   <p><b>Precision.</b> Slicing into five-year bands shrinks each estimate and widens its margin of error; small-metro single bands are noisier than the all-ages view. Hovering any covered metro shows that <b>margin of error</b> — 90%, from the 80 PUMS replicate weights (band, bucket and all-ages aggregates combined by root-sum-square). On the base age view the displayed count is the published table while the margin is the PUMS estimate of the same figure (their own published margins are comparable); the economic and race views are PUMS throughout. Any metro whose male–female gap falls <i>within</i> its margin is faded and dashed, and is tallied in the grey <b>“too close”</b> middle of the leaning bar — flagging the lean as not statistically distinguishable. The nine areas without PUMS data (city insets, Connecticut) carry no margin. The normalized views clip at the legend maximum so a few tiny, lopsided metros don't blow out the scale. The same caution applies to the ranking tables: an 8,000-single floor filters the worst noise, but the smallest qualifying metros (and the most extreme ratios, like Macon's 35–39 figure) rest on a few thousand people and carry wide error bars — the underlying counts are shown so you can weigh each row.</p>`;
+   <p><b>Precision.</b> Slicing into five-year bands shrinks each estimate and widens its margin of error; small-metro single bands are noisier than the all-ages view. Hovering any covered metro shows that <b>margin of error</b> — 90%, from the 80 PUMS replicate weights (band, bucket and all-ages aggregates combined by root-sum-square). On the base age view the displayed count is the published table while the margin is the PUMS estimate of the same figure (their own published margins are comparable); the economic and race views are PUMS throughout. Any metro whose male–female gap falls <i>within</i> its margin is faded and dashed, and is tallied in the grey <b>“too close”</b> middle of the leaning bar — flagging the lean as not statistically distinguishable. The ranking tables carry the same discipline: every ratio shows its ±90% margin, ranks tied with the row above (difference within the combined margin) are marked <b>≈</b> — the exact order among tied rows is noise — and an 8,000-single floor (1,000 for race views, 1,000 reciprocal matches for the personal ranking) filters the worst small-sample rows. The nine areas without PUMS data (city insets, Connecticut) carry no margin (†). The normalized views clip at the legend maximum so a few tiny, lopsided metros don't blow out the scale. The same caution applies to the ranking tables: an 8,000-single floor filters the worst noise, but the smallest qualifying metros (and the most extreme ratios, like Macon's 35–39 figure) rest on a few thousand people and carry wide error bars — the underlying counts are shown so you can weigh each row.</p>`;
 }
 start();
 </script>
