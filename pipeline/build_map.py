@@ -37,13 +37,18 @@ def find(name):
             return p
     sys.exit(f"ERROR: could not find {name} in {[str(d) for d in SEARCH_DIRS]}")
 
+def minify_json(text):
+    """Re-serialize compact (no whitespace) — lossless ~17% off each data file.
+    Source files stay human-diffable; only the deployed HTML is minified."""
+    return json.dumps(json.loads(text), separators=(",", ":"), ensure_ascii=False)
+
 def main():
     tpl = find(TEMPLATE_NAME).read_text(encoding="utf-8")
     out = tpl
     for ph, fname in INJECT.items():
         if ph not in out:
             sys.exit(f"ERROR: placeholder {ph} missing from template")
-        out = out.replace(ph, find(fname).read_text(encoding="utf-8").strip())
+        out = out.replace(ph, minify_json(find(fname).read_text(encoding="utf-8")))
 
     # Vintage scalar: the current ACS year, injected into copy + the year slider's
     # "latest" tick. Guard that the history file agrees with config.

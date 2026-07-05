@@ -149,6 +149,32 @@
   .c-val{font-size:9.5px;font-family:"Public Sans";font-weight:600;text-anchor:middle;fill:#fff}
   @media (max-width:820px){.analysis{grid-template-columns:1fr}.chart-pair{grid-template-columns:1fr}}
   @media (prefers-reduced-motion:reduce){.metro,.counter .cm,.counter .cw{transition:none}}
+
+  /* --- phones (<=640px): stack, shrink controls, keep the map readable --- */
+  @media (max-width:640px){
+    .wrap{padding:20px 14px 44px}
+    .abstract{padding:14px 15px;font-size:12.5px}
+    h2.sec{font-size:21px;margin:36px 0 4px}
+    .tbl-grid{grid-template-columns:1fr;gap:14px}          /* one ranking table per row */
+    .tbl-card{min-width:0}                                 /* let cards shrink so tbl-scroll clips (grid min-width:auto trap) */
+    .toolbar{gap:8px 12px}
+    .seg{max-width:100%;overflow-x:auto;overflow-y:hidden}  /* wide 7-button segs scroll, not overflow the page */
+    .seg button{padding:6px 9px;font-size:12px;flex:0 0 auto;white-space:nowrap}
+    .lab{min-width:0 !important}
+    .age-row,.seeker-row{gap:10px}
+    .age-slider,.seeker-field{min-width:140px}
+    .age-now{min-width:0}
+    .counter{min-width:160px}
+    .seeker-field{min-width:100%}                          /* dual sliders get their own row */
+    .tbl-card h3{font-size:16px}
+    .tbl-scroll{overflow-x:auto}                           /* wide table scrolls in-card, not the page */
+    table.rt{font-size:12px}
+    table.rt th,table.rt td{white-space:nowrap}
+    table.rt td{padding:5px 6px 5px 0}
+    .notes,.ap{font-size:12.5px}
+    #tip{max-width:220px;font-size:11.5px}
+    footer{font-size:11px}
+  }
 </style>
 
 <div class="wrap">
