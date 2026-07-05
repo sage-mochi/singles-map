@@ -57,6 +57,7 @@
   .seeker-field label{font-size:12px;color:var(--ink-soft)} .seeker-field label b{color:var(--ink)}
   .dual{display:flex;gap:8px} .dual input{flex:1}
   .seg.segoff button:not([data-sr="any"]){opacity:.4;cursor:not-allowed}
+  .seg.segoff2{opacity:.4;pointer-events:none}
   .age-row{display:flex;align-items:center;gap:14px;margin:0 0 14px;flex-wrap:wrap}
   .age-slider{flex:1;min-width:240px;display:flex;flex-direction:column;gap:4px}
   .racehint{display:none;font-size:12px;color:var(--ink-soft);max-width:92ch;margin:6px 0 12px;padding-left:10px;border-left:2px solid var(--hair)}
@@ -295,6 +296,11 @@
     <svg id="map" viewBox="0 0 960 648" role="img" aria-label="Map of US metros by single-gender imbalance"></svg>
   </div>
 
+  <h3 class="ah">The asymmetry, in one exhibit</h3>
+  <p class="ap">Run the matchmaking benchmark at every age — national single counts, each age's default (middle-50%) search range — and the sexes trace <b>opposite arcs</b>. A man's market is hardest in his prime years (~160 rivals per 100 reciprocal matches around 30) and eases with age (~88 by 60); a woman's starts easiest at 20 (~107) and tightens through midlife (~150 in her 50s). <b>The curves cross in the mid-30s: the market clock runs in opposite directions.</b> The same-age sex ratio of §1 is structurally unable to see this — it is the age-gap kernel of §3, applied to the singles pool, that produces it.</p>
+  <div class="figure"><div class="chart-cap">Your national market, by seeker age — rivals per 100 reciprocal matches (default search range at each age, race-blind)</div>
+    <svg id="asym" viewBox="0 0 960 340" role="img" aria-label="National matchmaking benchmark by seeker age and sex"></svg></div>
+
   <h2 class="sec">§3 · The mechanism: women marry earlier — and marry older men</h2>
   <p class="sub"><b>Claim: one mechanism drives both halves of the map — and the matchmaking asymmetry above.</b> Three findings, and the decomposition behind the one that puzzles people most.</p>
   <div class="analysis" id="analysis"></div>
@@ -511,6 +517,7 @@ function start(){
   };
 
   let mode="abs", sel=-1, race="all", econ="all"; // sel -1 = all ages
+  let tblDir="women", tblRace="all";              // ranking-table state (shared with deep links)
   const seeker={on:false, sex:"m", age:30, lo:28, hi:31,
                 myRace:"none", seek:new Set(["any"])};      // matchmaking mode
   /* time slider: YEARSL = [2006..2023, 2024]; 2024 rows come from the live map
@@ -818,7 +825,10 @@ function start(){
     circles.sort((a,b)=>S(valf(b))-S(valf(a)));
     ageNow.textContent=AGE_LABELS[sel+1]; ageNowSub.textContent=SUBS[sel+1];
     if(active) tip.innerHTML=tipHTML(active);   // keep an open tooltip fresh across control changes
-    setYearUI(); drawLabels(); drawLegend(); updateCounter(); syncTables();
+    // in seeker mode the age-band slider, play and sizing modes have no effect — say so
+    ageRow.classList.toggle("disabled",seeker.on); slider.disabled=seeker.on; playBtn.disabled=seeker.on;
+    document.getElementById("modeSeg").classList.toggle("segoff2",seeker.on);
+    setYearUI(); drawLabels(); drawLegend(); updateCounter(); syncTables(); writeURL();
   }
 
   slider.addEventListener("input",()=>{stopPlay(); sel=(+slider.value)-1; update(true);});
@@ -927,6 +937,60 @@ function start(){
     if(yearPast()){ seekerOff(); econ="all"; race="all"; setEconUI(); setRaceUI(); setSeekRaceUI(); }
     setYearUI(); update(true);
   });
+
+  /* ---- deep links: the current view lives in the URL hash ----
+     Only non-default state is written, so bare URLs stay bare. Precedence on
+     read mirrors the lenses' mutual exclusivity: seeker > econ > race > year. */
+  const RSHORT_INV={White:"white",Black:"black",Asian:"asian",Hispanic:"hisp","Two or more":"two"};
+  const RLONG={white:"White",black:"Black",asian:"Asian",hisp:"Hispanic",two:"Two or more"};
+  function writeURL(){
+    const p=new URLSearchParams();
+    if(mode!=="abs") p.set("v",mode);
+    if(sel>=0) p.set("age",BANDS[sel]);
+    if(seeker.on){
+      p.set("seek",seeker.sex); p.set("sage",seeker.age); p.set("open",seeker.lo+"-"+seeker.hi);
+      if(seeker.myRace!=="none") p.set("iam",seeker.myRace);
+      if(!seeker.seek.has("any")) p.set("want",[...seeker.seek].join(","));
+    } else if(econ!=="all") p.set("econ",econ);
+    else if(race!=="all") p.set("race",RSHORT_INV[race]);
+    else if(yearPast()) p.set("yr",YEARSL[yi]);
+    if(tblDir!=="women") p.set("tdir",tblDir);
+    if(tblRace!=="all") p.set("trace",RSHORT_INV[tblRace]);
+    const h=p.toString();
+    history.replaceState(null,"",h?"#"+h:location.pathname+location.search);
+  }
+  function applyURL(){
+    const p=new URLSearchParams(location.hash.slice(1));
+    if(![...p.keys()].length) return;
+    const g=k=>p.get(k);
+    if(["abs","rate","ratio"].includes(g("v"))) mode=g("v");
+    [...document.querySelectorAll("#modeSeg button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.m===mode));
+    const bi=BANDS.indexOf(g("age")||"");
+    if(bi>=0){ sel=bi; slider.value=bi+1; }
+    if(g("seek")==="m"||g("seek")==="w"){
+      seeker.on=true; seeker.sex=g("seek");
+      const sa=+g("sage"); if(sa>=20&&sa<=64) seeker.age=sa;
+      applyKernelDefault();
+      const op=(g("open")||"").split("-").map(Number);
+      if(op.length===2&&op[0]>=18&&op[1]<=70&&op[0]<=op[1]){ seeker.lo=op[0]; seeker.hi=op[1]; }
+      if(RACES6.includes(g("iam"))) seeker.myRace=g("iam");
+      const want=(g("want")||"").split(",").filter(x=>RACES6.includes(x));
+      if(want.length&&seeker.myRace!=="none") seeker.seek=new Set(want);
+      // sync the seeker UI without re-defaulting the decoded range
+      [...document.querySelectorAll("#seekerToggle button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.s==="on"));
+      [...document.querySelectorAll("#seekerSex button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.x===seeker.sex));
+      seekControls.style.display="block";
+      document.getElementById("seekerAge").value=seeker.age;
+      document.getElementById("seekerLo").value=seeker.lo;
+      document.getElementById("seekerHi").value=seeker.hi;
+      setSeekRaceUI(); seekerLabels();
+    } else if(ECONLAB[g("econ")]){ econ=g("econ"); setEconUI(); }
+    else if(RLONG[g("race")]){ race=RLONG[g("race")]; setRaceUI(); }
+    else { const yiP=YEARSL.indexOf(+g("yr"));
+      if(yiP>=0&&yiP<YEARSL.length-1){ yi=yiP; yearSlider.value=yiP; } }
+    if(g("tdir")==="men") tblDir="men";
+    if(RLONG[g("trace")]) tblRace=RLONG[g("trace")];
+  }
   /* race filter: "Seeking" requires "I am" (reciprocity is undefined without it) */
   function setSeekRaceUI(){
     [...document.querySelectorAll("#seekerMyRace button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.mr===seeker.myRace));
@@ -952,7 +1016,52 @@ function start(){
     setSeekRaceUI(); seekerLabels(); update(true);
   });
 
-  update(false);
+  /* applyURL() + the initial update(false) run at the END of start(), after every
+     section's declarations — a seeker deep link renders the personal table, which
+     needs the ranking-table consts (TDZ otherwise). */
+  function asymChart(){
+    const save={on:seeker.on,sex:seeker.sex,age:seeker.age,lo:seeker.lo,hi:seeker.hi,
+                myRace:seeker.myRace,seek:seeker.seek};
+    seeker.on=true; seeker.myRace="none"; seeker.seek=new Set(["any"]);
+    const series={m:[],w:[]};
+    for(const sx of ["m","w"]){
+      seeker.sex=sx;
+      for(let a=20;a<=60;a++){
+        seeker.age=a;
+        const k=KERNEL.bySex[sx][a];
+        seeker.lo=k?k.p25:a-3; seeker.hi=k?k.p75:a+1;
+        const r=seekCalc(NATAGE);
+        if(r&&!r.noRecip) series[sx].push({a,v:r.ratio});
+      }
+    }
+    Object.assign(seeker,save);
+    const svg=d3.select("#asym"),W=960,H=340,mg={t:26,r:64,b:44,l:56};
+    const iw=W-mg.l-mg.r, ih=H-mg.t-mg.b;
+    const x=d3.scaleLinear().domain([20,60]).range([mg.l,mg.l+iw]);
+    const all=[...series.m,...series.w].map(d=>d.v);
+    const y=d3.scaleLinear().domain([Math.min(...all)*0.93, Math.max(...all)*1.05]).range([mg.t+ih,mg.t]);
+    y.ticks(6).forEach(t=>{svg.append("line").attr("class","c-grid").attr("x1",mg.l).attr("x2",mg.l+iw).attr("y1",y(t)).attr("y2",y(t));
+      svg.append("text").attr("class","c-tick").attr("x",mg.l-7).attr("y",y(t)+3).attr("text-anchor","end").text(t);});
+    x.ticks(9).forEach(t=>svg.append("text").attr("class","c-band").attr("x",x(t)).attr("y",H-24).text(t));
+    const line=d3.line().x(d=>x(d.a)).y(d=>y(d.v)).curve(d3.curveMonotoneX);
+    svg.append("path").attr("d",line(series.m)).attr("fill","none").attr("stroke","var(--men)").attr("stroke-width",2.6);
+    svg.append("path").attr("d",line(series.w)).attr("fill","none").attr("stroke","var(--women)").attr("stroke-width",2.6);
+    const endM=series.m[series.m.length-1], endW=series.w[series.w.length-1];
+    svg.append("text").attr("class","c-lbl").attr("x",x(60)+7).attr("y",y(endM.v)+4).attr("fill","var(--men)").text("Men");
+    svg.append("text").attr("class","c-lbl").attr("x",x(60)+7).attr("y",y(endW.v)+4).attr("fill","var(--women)").text("Women");
+    let cross=null;                                       // where the curves swap order
+    for(let i=0;i<series.m.length-1;i++){
+      const wA=series.w.find(d=>d.a===series.m[i].a), wB=series.w.find(d=>d.a===series.m[i+1].a);
+      if(wA&&wB&&(series.m[i].v-wA.v)*(series.m[i+1].v-wB.v)<0){ cross=series.m[i].a+0.5; break; }
+    }
+    if(cross){
+      svg.append("line").attr("x1",x(cross)).attr("x2",x(cross)).attr("y1",mg.t).attr("y2",mg.t+ih)
+        .attr("stroke","var(--ink-soft)").attr("stroke-dasharray","3 3").attr("stroke-width",.8).attr("opacity",.6);
+      svg.append("text").attr("class","flip-anno italic").attr("x",x(cross)+6).attr("y",mg.t+14).text("the clocks cross ≈ "+Math.round(cross));
+    }
+    svg.append("text").attr("class","c-tick").attr("x",mg.l).attr("y",H-6)
+      .text("seeker age · each age uses its default (middle-50%) search range · past ~60 the 20–64 data window truncates the range");
+  }
 
   /* ---- ratio tables (toggle direction) + analysis ---- */
   const ORDER=["20-24","25-29","30-34","35-39"];
@@ -1024,18 +1133,18 @@ function start(){
       note.innerHTML=`<b>${RLABEL_T[race]} singles</b>, from Census PUMS microdata (2024 1-yr) — the only source with race by age by metro. Covers the 222 PUMS metros plus New York and Los Angeles (not the 5 Connecticut metros or the city insets); a metro needs ≥${fmt(RACE_FLOOR)} single ${RLABEL_T[race].toLowerCase()} adults in the bracket to appear. These subsets are smaller samples than the all-race view, so the rankings carry wider margins of error — treat the exact order, especially the extreme top rows on small metros, with caution.`;
     }
   }
-  let tblDir="women", tblRace="all";
-  renderTables(tblDir,tblRace);
   document.getElementById("dirSeg").addEventListener("click",e=>{
     const b=e.target.closest("button"); if(!b)return; tblDir=b.dataset.d;
-    [...document.querySelectorAll("#dirSeg button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.d===tblDir));
-    renderTables(tblDir,tblRace);
+    syncTableSegs(); renderTables(tblDir,tblRace); writeURL();
   });
   document.getElementById("tblRaceSeg").addEventListener("click",e=>{
     const b=e.target.closest("button"); if(!b)return; tblRace=b.dataset.r;
-    [...document.querySelectorAll("#tblRaceSeg button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.r===tblRace));
-    renderTables(tblDir,tblRace);
+    syncTableSegs(); renderTables(tblDir,tblRace); writeURL();
   });
+  function syncTableSegs(){
+    [...document.querySelectorAll("#dirSeg button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.d===tblDir));
+    [...document.querySelectorAll("#tblRaceSeg button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.r===tblRace));
+  }
 
   /* ---- seeker-mode ranking: §4 becomes your personal table ---- */
   function renderSeekerTable(){
@@ -1157,6 +1266,14 @@ function start(){
    <p><b>What a head-count gap still can't tell you.</b> Three limits no Census table removes: it counts <b>everyone single, not everyone looking</b> — the retired widower and the active dater are one number here; it ignores <b>who's compatible</b> — sexual orientation isn't in these tables, and most people partner near their own age, so a metro's overall surplus rarely matches the pool a given person actually draws from; and it treats <b>"unmarried" as "available,"</b> though many are cohabiting or otherwise partnered. Read it as a demographic portrait, not dating odds.</p>
    <p><b>Three ways to size the circles.</b> <b>Absolute gap</b> is the original's metric — raw head-count difference, which rewards big metros. The other two normalize for size and, as a result, rank metros identically: <b>per 1,000 singles</b> expresses the gap as a share of the local single pool, while <b>men per 100 women</b> is the plain sex ratio — the most readable apples-to-apples number (100 = parity, 130 = thirty percent more men, 77 = its mirror image for women). The ratio view is sized by the log of the ratio, so an equal imbalance on either side draws an equal circle.</p>
    <p><b>Precision.</b> Slicing into five-year bands shrinks each estimate and widens its margin of error; small-metro single bands are noisier than the all-ages view. Hovering any covered metro shows that <b>margin of error</b> — 90%, from the 80 PUMS replicate weights (band, bucket and all-ages aggregates combined by root-sum-square). On the base age view the displayed count is the published table while the margin is the PUMS estimate of the same figure (their own published margins are comparable); the economic and race views are PUMS throughout. Any metro whose male–female gap falls <i>within</i> its margin is faded and dashed, and is tallied in the grey <b>“too close”</b> middle of the leaning bar — flagging the lean as not statistically distinguishable. The ranking tables carry the same discipline: every ratio shows its ±90% margin, ranks tied with the row above (difference within the combined margin) are marked <b>≈</b> — the exact order among tied rows is noise — and an 8,000-single floor (1,000 for race views, 1,000 reciprocal matches for the personal ranking) filters the worst small-sample rows. The nine areas without PUMS data (city insets, Connecticut) carry no margin (†). The normalized views clip at the legend maximum so a few tiny, lopsided metros don't blow out the scale. The same caution applies to the ranking tables: an 8,000-single floor filters the worst noise, but the smallest qualifying metros (and the most extreme ratios, like Macon's 35–39 figure) rest on a few thousand people and carry wide error bars — the underlying counts are shown so you can weigh each row.</p>`;
+
+  /* initial render: after every section's declarations (a seeker deep link
+     renders the personal ranking table on first paint) */
+  applyURL();
+  syncTableSegs();
+  if(!seeker.on) renderTables(tblDir,tblRace);   // seeker case: update()->syncTables renders the personal table
+  update(false);
+  asymChart();
 }
 start();
 </script>
