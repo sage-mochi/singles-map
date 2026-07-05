@@ -199,16 +199,18 @@
   <p class="racehint" id="racehint">Now modeled from Census <b>PUMS microdata</b> (2024 1-year), so race groups are <b>mutually exclusive</b> (Hispanic of any race, then non-Hispanic White/Black/Asian/Two+) and — unlike before — <b>respect the age slider</b>. Race and the economic filter can't be combined (separate microdata cross-tabs), so choosing one resets the other. New York and Los Angeles appear as whole metros in these views; only the five Connecticut metros lack a PUMS estimate.</p>
 
   <div class="toolbar" style="margin-bottom:2px">
-    <span class="lab">Economic filter</span>
-    <div class="seg" id="econSeg" role="group" aria-label="Economic filter">
+    <span class="lab">Econ / education</span>
+    <div class="seg" id="econSeg" role="group" aria-label="Economic and education filter">
       <button data-e="all" aria-pressed="true">All singles</button>
       <button data-e="emp" aria-pressed="false">Employed</button>
       <button data-e="i50" aria-pressed="false">$50k+</button>
       <button data-e="i75" aria-pressed="false">$75k+</button>
       <button data-e="i100" aria-pressed="false">$100k+</button>
+      <button data-e="ba" aria-pressed="false">Bachelor's+</button>
+      <button data-e="noba" aria-pressed="false">No bachelor's</button>
     </div>
   </div>
-  <p class="racehint" id="econhint">Modeled from Census <b>PUMS microdata</b> (2024 1-year), not the published tables: single adults 20–64 by personal income (total income in 2024 dollars) or employment. Unlike the race view, these <b>respect the age slider</b>. Income/employment and race can't be combined — the microdata cross-tabs are separate — so choosing one resets the other. Here New York and Los Angeles appear as whole metros (their city insets step aside); only the five Connecticut metros, which lack a clean PUMS-to-metro mapping, have no PUMS estimate.</p>
+  <p class="racehint" id="econhint">Modeled from Census <b>PUMS microdata</b> (2024 1-year), not the published tables: single adults 20–64 by personal income (total income in 2024 dollars), employment, or education (bachelor's degree or higher vs not). All of these <b>respect the age slider</b>. The education split is the <i>Date-onomics</i> finding made scrubbable: among singles 25–34 the ratio <b>flips between the two pools</b> — roughly 90 college men per 100 college women, but ~133 per 100 in the non-degree pool — so the "surplus of single men" and the "shortage of educated men" are both true, in different markets. These filters and race can't be combined (separate microdata cross-tabs), so choosing one resets the other. New York and Los Angeles appear here as whole metros (their city insets step aside); only the five Connecticut metros, which lack a clean PUMS-to-metro mapping, have no PUMS estimate.</p>
 
   <div class="toolbar" style="margin-bottom:2px">
     <span class="lab">Matchmaking view</span>
@@ -395,6 +397,7 @@ function start(){
   function econVals(r,sel){
     const x=m3Of(r); if(!x) return null;
     if(econ==="emp") return {m:pickA(x.emp.m,sel), w:pickA(x.emp.w,sel)};
+    if(econ==="ba"||econ==="noba"){ const n=x.edu&&x.edu[econ]; return n?{m:pickA(n.m,sel), w:pickA(n.w,sel)}:null; }
     let m=0,w=0; for(const b of INC_GE[econ]){ m+=pickA(x.inc[b].m,sel); w+=pickA(x.inc[b].w,sel); }
     return {m,w};
   }
@@ -432,6 +435,7 @@ function start(){
     const pm=arr=> sel<0 ? rss(arr) : arr[sel];
     if(econ!=="all"){
       if(econ==="emp") return {m:pm(x.emp.m_moe), w:pm(x.emp.w_moe)};
+      if(econ==="ba"||econ==="noba"){ const n=x.edu&&x.edu[econ]; return n?{m:pm(n.m_moe), w:pm(n.w_moe)}:null; }
       let mm=0,ww=0;
       for(const b of INC_GE[econ]){ const im=x.inc[b].m_moe, iw=x.inc[b].w_moe;
         const R=sel<0?[...Array(9).keys()]:[sel];
@@ -652,7 +656,8 @@ function start(){
 
   const tip=document.getElementById("tip");
   const RLAB={White:"White (non-Hisp.)",Black:"Black",Asian:"Asian",Hispanic:"Hispanic","Two or more":"Two or more races"};
-  const ECONLAB={emp:"Employed",i50:"$50k+ income",i75:"$75k+ income",i100:"$100k+ income"};
+  const ECONLAB={emp:"Employed",i50:"$50k+ income",i75:"$75k+ income",i100:"$100k+ income",
+                 ba:"Bachelor's+",noba:"No bachelor's"};
   function tipHTML(r){
     const cnote = r.city ? `<div class="citynote">City proper (Census place) — covers the city limits only, not the surrounding metro region, so its circle isn't directly comparable to the metro-area circles around it.</div>` : "";
     if(seeker.on){
