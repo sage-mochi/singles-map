@@ -75,7 +75,7 @@ def main():
         node.setdefault('race', {}).setdefault(r.race, {}).setdefault(r.sex, {})[a] = \
             [est, round(r.moe)]
 
-    out = {'meta': {'vintage':'ACS 2024 1-year PUMS',
+    out = {'meta': {'vintage':f'{B.config.VINTAGE} PUMS',
                     'ages': AGES,
                     'note':'single (MAR!=1) men/women by single year of age, per CBSA; '
                            'MOE 90% from 80 replicate weights (SDR). race = sparse '

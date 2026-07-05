@@ -13,19 +13,18 @@ pipeline/pums_cache/ (git-ignored).
 import csv, json, math, re, sys
 from pathlib import Path
 import requests
+import config
 
 ROOT  = Path(__file__).resolve().parent.parent
 DATA  = ROOT / 'data'
 CACHE = ROOT / 'pipeline' / 'pums_cache'
 CACHE.mkdir(parents=True, exist_ok=True)
-GAZ_URL = ('https://www2.census.gov/geo/docs/maps-data/data/gazetteer/'
-           '2024_Gazetteer/2024_Gaz_cbsa_national.zip')
 
 def load_gazetteer():
     import io, zipfile
-    txt = CACHE / '2024_Gaz_cbsa_national.txt'
+    txt = CACHE / config.GAZ_TXT
     if not txt.exists():
-        r = requests.get(GAZ_URL, timeout=120); r.raise_for_status()
+        r = requests.get(config.GAZ_URL, timeout=120); r.raise_for_status()
         z = zipfile.ZipFile(io.BytesIO(r.content))
         member = next(n for n in z.namelist() if n.lower().endswith('.txt'))
         txt.write_bytes(z.read(member))

@@ -153,13 +153,13 @@
 
 <div class="wrap">
   <header>
-    <p class="eyebrow">An interactive thesis · American Community Survey · 2024 1-Year Estimates</p>
+    <p class="eyebrow">An interactive thesis · American Community Survey · __ACSYEAR__ 1-Year Estimates</p>
     <h1>The Singles Map: it's <em>when</em>, not where</h1>
     <p class="dek">The famous map sizes each metro by its surplus of single men (blue) or single women (red), ages 20–64. But that single number hides the real pattern — the imbalance is driven far more by <em>age</em> than by <em>place</em>. That correction is chapter one: below it, a matchmaking view measures <em>your</em> market, where who you are and what you seek matter more than either when or where.</p>
     <div class="abstract">
       <span class="ab-label">Abstract</span>
       The 2007 National Geographic "Singles Map" advised singles to move wherever their target
-      sex is in surplus. Rebuilding it on 2024 Census data — published tables plus person-level
+      sex is in surplus. Rebuilding it on __ACSYEAR__ Census data — published tables plus person-level
       microdata — we find that advice fails twice. First, the aggregate imbalance is set by age,
       not place: nearly every metro tilts male among singles in their twenties and female past
       45, flipping around 40. Second, the same-age sex ratio mismeasures any <em>individual's</em>
@@ -196,7 +196,7 @@
       <button data-r="Two or more">Two+</button>
     </div>
   </div>
-  <p class="racehint" id="racehint">Now modeled from Census <b>PUMS microdata</b> (2024 1-year), so race groups are <b>mutually exclusive</b> (Hispanic of any race, then non-Hispanic White/Black/Asian/Two+) and — unlike before — <b>respect the age slider</b>. Race and the economic filter can't be combined (separate microdata cross-tabs), so choosing one resets the other. New York and Los Angeles appear as whole metros in these views; only the five Connecticut metros lack a PUMS estimate.</p>
+  <p class="racehint" id="racehint">Now modeled from Census <b>PUMS microdata</b> (__ACSYEAR__ 1-year), so race groups are <b>mutually exclusive</b> (Hispanic of any race, then non-Hispanic White/Black/Asian/Two+) and — unlike before — <b>respect the age slider</b>. Race and the economic filter can't be combined (separate microdata cross-tabs), so choosing one resets the other. New York and Los Angeles appear as whole metros in these views; only the five Connecticut metros lack a PUMS estimate.</p>
 
   <div class="toolbar" style="margin-bottom:2px">
     <span class="lab">Econ / education</span>
@@ -210,7 +210,7 @@
       <button data-e="noba" aria-pressed="false">No bachelor's</button>
     </div>
   </div>
-  <p class="racehint" id="econhint">Modeled from Census <b>PUMS microdata</b> (2024 1-year), not the published tables: single adults 20–64 by personal income (total income in 2024 dollars), employment, or education (bachelor's degree or higher vs not). All of these <b>respect the age slider</b>. The education split is the <i>Date-onomics</i> finding made scrubbable: among singles 25–34 the ratio <b>flips between the two pools</b> — roughly 90 college men per 100 college women, but ~133 per 100 in the non-degree pool — so the "surplus of single men" and the "shortage of educated men" are both true, in different markets. These filters and race can't be combined (separate microdata cross-tabs), so choosing one resets the other. New York and Los Angeles appear here as whole metros (their city insets step aside); only the five Connecticut metros, which lack a clean PUMS-to-metro mapping, have no PUMS estimate.</p>
+  <p class="racehint" id="econhint">Modeled from Census <b>PUMS microdata</b> (__ACSYEAR__ 1-year), not the published tables: single adults 20–64 by personal income (total income in __ACSYEAR__ dollars), employment, or education (bachelor's degree or higher vs not). All of these <b>respect the age slider</b>. The education split is the <i>Date-onomics</i> finding made scrubbable: among singles 25–34 the ratio <b>flips between the two pools</b> — roughly 90 college men per 100 college women, but ~133 per 100 in the non-degree pool — so the "surplus of single men" and the "shortage of educated men" are both true, in different markets. These filters and race can't be combined (separate microdata cross-tabs), so choosing one resets the other. New York and Los Angeles appear here as whole metros (their city insets step aside); only the five Connecticut metros, which lack a clean PUMS-to-metro mapping, have no PUMS estimate.</p>
 
   <div class="toolbar" style="margin-bottom:2px">
     <span class="lab">Matchmaking view</span>
@@ -275,7 +275,7 @@
       <input type="range" id="year" min="0" max="17" step="1" value="17" aria-label="Year">
       <div class="age-ticks" id="yearTicks"></div>
     </div>
-    <div class="age-now"><span id="yearNow">2024</span><small id="yearNowSub">latest</small></div>
+    <div class="age-now"><span id="yearNow">__ACSYEAR__</span><small id="yearNowSub">latest</small></div>
   </div>
 
   <div class="counter-wrap">
@@ -345,7 +345,7 @@
   <div class="notes" id="notes"></div>
 
   <footer>
-    <span><b>Source.</b> U.S. Census Bureau, ACS 2024 1-Year Estimates: table B12002 and PUMS microdata (never-married + divorced + separated + widowed). Coordinates: Census CBSA Gazetteer.</span>
+    <span><b>Source.</b> U.S. Census Bureau, ACS __ACSYEAR__ 1-Year Estimates: table B12002 and PUMS microdata (never-married + divorced + separated + widowed). Coordinates: Census CBSA Gazetteer.</span>
     <span>227 metro areas + 4 city insets</span>
   </footer>
 </div>
@@ -524,11 +524,12 @@ function start(){
   let tblDir="women", tblRace="all";              // ranking-table state (shared with deep links)
   const seeker={on:false, sex:"m", age:30, lo:28, hi:31,
                 myRace:"none", seek:new Set(["any"])};      // matchmaking mode
-  /* time slider: YEARSL = [2006..2023, 2024]; 2024 rows come from the live map
-     data (byage/M3), historical rows from YRS (published B12002 per vintage).
-     The PUMS lenses (econ/race/seeker) are 2024-only — engaging one snaps the
-     year back; scrubbing back resets the lenses. */
-  const YEARSL=[...YRS.years, 2024];
+  /* time slider: YEARSL = [history…, current]. The current year's rows come from
+     the live map data (byage/M3); historical rows from YRS (published B12002 per
+     vintage). The PUMS lenses (econ/race/seeker) are current-year only — engaging
+     one snaps the year back; scrubbing back resets the lenses. */
+  const ACS_YEAR=__ACSYEAR__;
+  const YEARSL=[...YRS.years, ACS_YEAR];
   let yi=YEARSL.length-1;                                    // index into YEARSL
   const yearPast=()=> yi<YEARSL.length-1;
   function yearRows(r){                                      // {m:[9],w:[9]} for the current year, or null
@@ -1135,7 +1136,7 @@ function start(){
     const note=document.getElementById("tblNote");
     if(race==="all"){ note.style.display="none"; }
     else { note.style.display="block";
-      note.innerHTML=`<b>${RLABEL_T[race]} singles</b>, from Census PUMS microdata (2024 1-yr) — the only source with race by age by metro. Covers the 222 PUMS metros plus New York and Los Angeles (not the 5 Connecticut metros or the city insets); a metro needs ≥${fmt(RACE_FLOOR)} single ${RLABEL_T[race].toLowerCase()} adults in the bracket to appear. These subsets are smaller samples than the all-race view, so the rankings carry wider margins of error — treat the exact order, especially the extreme top rows on small metros, with caution.`;
+      note.innerHTML=`<b>${RLABEL_T[race]} singles</b>, from Census PUMS microdata (${ACS_YEAR} 1-yr) — the only source with race by age by metro. Covers the 222 PUMS metros plus New York and Los Angeles (not the 5 Connecticut metros or the city insets); a metro needs ≥${fmt(RACE_FLOOR)} single ${RLABEL_T[race].toLowerCase()} adults in the bracket to appear. These subsets are smaller samples than the all-race view, so the rankings carry wider margins of error — treat the exact order, especially the extreme top rows on small metros, with caution.`;
     }
   }
   document.getElementById("dirSeg").addEventListener("click",e=>{

@@ -10,6 +10,7 @@ Run from anywhere:  python pipeline/build_map.py
 """
 import json, re, shutil, subprocess, sys
 from pathlib import Path
+import config
 
 ROOT = Path(__file__).resolve().parent.parent          # repo root (script lives in pipeline/)
 
@@ -44,7 +45,16 @@ def main():
             sys.exit(f"ERROR: placeholder {ph} missing from template")
         out = out.replace(ph, find(fname).read_text(encoding="utf-8").strip())
 
-    leftover = [ph for ph in INJECT if ph in out]
+    # Vintage scalar: the current ACS year, injected into copy + the year slider's
+    # "latest" tick. Guard that the history file agrees with config.
+    yr = json.loads(find("years_min.json").read_text(encoding="utf-8"))
+    latest = yr.get("meta", {}).get("latest")
+    if latest not in (None, config.ACS_YEAR):
+        sys.exit(f"ERROR: years_min.json latest={latest} != config.ACS_YEAR={config.ACS_YEAR}; "
+                 f"re-run build_years.py")
+    out = out.replace("__ACSYEAR__", str(config.ACS_YEAR))
+
+    leftover = [ph for ph in list(INJECT) + ["__ACSYEAR__"] if ph in out]
     if leftover:
         sys.exit(f"ERROR: unfilled placeholders remain: {leftover}")
 

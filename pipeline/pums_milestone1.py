@@ -11,12 +11,13 @@ MOE demo (successive-difference replication) shown for one state.
 import requests, io, sys, os
 import pandas as pd
 import numpy as np
+import config
 
 KEY = os.environ.get("CENSUS_API_KEY")
 if not KEY: raise SystemExit("Set CENSUS_API_KEY (free: https://api.census.gov/data/key_signup.html)")
-YEAR = "2024"
-PUMS = f"https://api.census.gov/data/{YEAR}/acs/acs1/pums"
-TBL  = f"https://api.census.gov/data/{YEAR}/acs/acs1"
+YEAR = str(config.ACS_YEAR)
+PUMS = config.PUMS_API
+TBL  = config.ACS1_API
 
 BANDS = ["20-24","25-29","30-34","35-39","40-44","45-49","50-54","55-59","60-64"]
 BAND_EDGES = [20,25,30,35,40,45,50,55,60,65]

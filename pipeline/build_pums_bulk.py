@@ -22,13 +22,14 @@ and per-state aggregates are cached under pipeline/pums_cache/ (git-ignored).
 import io, json, sys, time, zipfile, pickle
 from pathlib import Path
 import numpy as np, pandas as pd, requests
+import config
 
 ROOT  = Path(__file__).resolve().parent.parent
 DATA  = ROOT / 'data'
 CACHE = ROOT / 'pipeline' / 'pums_cache'
 CACHE.mkdir(parents=True, exist_ok=True)
 
-BASE = 'https://www2.census.gov/programs-surveys/acs/data/pums/2024/1-Year'
+BASE = config.PUMS_BULK_BASE
 # FIPS -> lowercase postal, for the csv_p{ab}.zip filenames.
 ST_AB = {'01':'al','02':'ak','04':'az','05':'ar','06':'ca','08':'co','09':'ct',
  '10':'de','11':'dc','12':'fl','13':'ga','15':'hi','16':'id','17':'il','18':'in',
@@ -88,7 +89,7 @@ def aggregate_state(st):
         ['hisp', 'white', 'black', 'asian', 'two'], default='other')
     df['ba']  = np.where(df.SCHL >= 21, 'ba', 'noba')
     df['emp'] = df.ESR.isin([1, 2, 4, 5])
-    inc = df.PINCP * df.ADJINC / 1e6                      # adjust to 2024 dollars
+    inc = df.PINCP * df.ADJINC / 1e6                      # adjust to survey-year dollars
     df['incb'] = pd.cut(inc, bins=INC_BINS, labels=INC_BUCKETS)
 
     def g(keys):
@@ -191,10 +192,10 @@ def main():
     for cb, v in bands_mw(emp).items():          metros.setdefault(cb,{})['emp']  = v
     for cb, v in bands_mw(inc,  'incb').items():  metros.setdefault(cb,{})['inc']  = v
 
-    out = {'meta': {'vintage':'ACS 2024 1-year PUMS',
+    out = {'meta': {'vintage':f'{config.VINTAGE} PUMS',
                     'race_def':'mutually-exclusive (Hispanic, then NH White/Black/Asian/Two+/Other)',
                     'employed_def':'ESR in {1,2,4,5}',
-                    'income':'PINCP * ADJINC/1e6 (2024 dollars)',
+                    'income':f'PINCP * ADJINC/1e6 ({config.ACS_YEAR} dollars)',
                     'moe':'SDR over 80 replicate weights, 90% (1.645*SE)',
                     'states': states},
            'metros': metros}
@@ -211,7 +212,9 @@ def main():
 
 # ---- validation: base estimate vs M2 / published -------------------------------
 def reconcile(base, nat_total, unmatched, full):
-    PUB_US = 97_210_546   # published B12002 single 20-64, 2024 1-yr (M2 reference)
+    # Vintage-specific anchor — RE-DERIVE when bumping config.ACS_YEAR (docs/REFRESH.md):
+    #   group(B12002) for us:* summed over the single vars = national single 20-64.
+    PUB_US = 97_210_546   # published B12002 single 20-64, ACS 2024 1-yr
     print('\n=== NATIONAL single 20-64 (bulk-CSV base) ===')
     print(f'  PUMA total {nat_total:,.0f}', end='')
     if full:
@@ -220,7 +223,8 @@ def reconcile(base, nat_total, unmatched, full):
         print('   (subset run — national check needs all states)')
     if unmatched:
         print(f'  PUMAs w/o crosswalk match: {len(unmatched)}  e.g. {unmatched[:5]}')
-    # name, M2-allocated single 20-64 (from pums-milestone2-results.md)
+    # name, M2-allocated single 20-64 (ACS 2024, from pums-milestone2-results.md).
+    # Vintage-specific — a new year won't match these; they anchor the 2024 rebuild only.
     REF = {'35620':('New York',6125553),'31080':('Los Angeles',4287760),
            '41860':('San Francisco',1390513),'16980':('Chicago',2843645),
            '12420':('Austin',759165),'19820':('Detroit',1299963)}

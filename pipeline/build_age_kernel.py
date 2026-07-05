@@ -147,7 +147,7 @@ def main():
     w_cg = cond_gap(wom, man, wt)
     race_pair, race_aff, race_marg = race_tables(cp)
 
-    out = {'meta': {'vintage':'ACS 2024 1-year PUMS',
+    out = {'meta': {'vintage':f'{B.config.VINTAGE} PUMS',
                     'definition':'opposite-sex married/partnered couples (RELSHIPP 20 + 21/22)',
                     'caveat':'realized couples reflect preference AND past availability, not pure '
                              'preference; the tool exposes the range as an adjustable slider.',

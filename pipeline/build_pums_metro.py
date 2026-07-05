@@ -1,9 +1,10 @@
 import requests, json, os, sys, time
 from collections import defaultdict
+import config
 
 KEY=os.environ.get('CENSUS_API_KEY')
 if not KEY: raise SystemExit('Set CENSUS_API_KEY (free: https://api.census.gov/data/key_signup.html)')
-PUMS='https://api.census.gov/data/2024/acs/acs1/pums'
+PUMS=config.PUMS_API
 STATES=['01','02','04','05','06','08','09','10','11','12','13','15','16','17','18','19',
  '20','21','22','23','24','25','26','27','28','29','30','31','32','33','34','35','36','37',
  '38','39','40','41','42','44','45','46','47','48','49','50','51','53','54','55','56']
@@ -19,7 +20,7 @@ def get(params, tries=5):
 
 # Reconciliation targets (published B12002 single 20-64 by band): national + sample metros.
 # Self-generates if refs_published.json is absent, so a clean clone is fully reproducible.
-TBL='https://api.census.gov/data/2024/acs/acs1'
+TBL=config.ACS1_API
 REF_METROS={'35620':'New York','31080':'Los Angeles','41860':'San Francisco','12420':'Austin',
  '16980':'Chicago','19820':'Detroit','41940':'San Jose','24340':'Grand Rapids','38900':'Portland OR'}
 
@@ -127,7 +128,7 @@ CH=40
 for i in range(0,len(allcb),CH):
     chunk=allcb[i:i+CH]
     p={'get':'group(B12002)','for':'metropolitan statistical area/micropolitan statistical area:'+','.join(chunk),'key':KEY}
-    rr=requests.get('https://api.census.gov/data/2024/acs/acs1',params=p,timeout=180)
+    rr=requests.get(config.ACS1_API,params=p,timeout=180)
     if rr.status_code!=200: continue
     rows=rr.json(); idx={h:i for i,h in enumerate(rows[0])}
     gi=idx['metropolitan statistical area/micropolitan statistical area']

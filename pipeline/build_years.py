@@ -26,6 +26,7 @@ responses cache under pipeline/pums_cache/. Output: data/years_min.json.
 import json, os, re, sys, time
 from pathlib import Path
 import requests
+import config
 
 ROOT  = Path(__file__).resolve().parent.parent
 DATA  = ROOT / 'data'
@@ -33,7 +34,8 @@ CACHE = ROOT / 'pipeline' / 'pums_cache'
 CACHE.mkdir(parents=True, exist_ok=True)
 
 KEY   = os.environ.get('CENSUS_API_KEY')
-YEARS = [y for y in range(2006, 2024) if y != 2020]
+CUR   = config.ACS_YEAR                 # the current vintage (carried by the live map, validated here)
+YEARS = config.HISTORY_YEARS            # historical years stored in years_min.json
 MSA_GEO = 'metropolitan statistical area/micropolitan statistical area'
 # city insets: (state fips, place fips) -> byage_min name
 PLACES = {('36','51000'):'New York', ('06','44000'):'Los Angeles',
@@ -134,7 +136,7 @@ def normname(full):
 
 def main():
     if '--verify-labels' in sys.argv:
-        for y in YEARS + [2024]:
+        for y in YEARS + [CUR]:
             verify_labels(y); print(f'{y}: labels OK')
         print('all vintages verified: fixed offsets are safe')
         return
@@ -142,12 +144,13 @@ def main():
     byage = json.load(open(DATA / 'byage_min.json'))
     targets = [m for m in byage['metros'] if m.get('code') and not m.get('pumsOnly')]
     t_codes = {m['code'] for m in targets}
-    for y in YEARS + [2024]:
+    for y in YEARS + [CUR]:
         verify_labels(y)
     print('labels verified for all years.')
 
     out = {'years': YEARS,
-           'meta': {'source': 'ACS 1-year B12002 per vintage; single = NM+SEP+WID+DIV; '
+           'meta': {'latest': CUR,       # current vintage the live map carries (UI appends it)
+                    'source': 'ACS 1-year B12002 per vintage; single = NM+SEP+WID+DIV; '
                               'MOE = RSS over the four components (90%).',
                     'note': '2020 skipped (no standard 1-year ACS); null = no 1-yr '
                             'estimate that year (pop<65K or delineation gap).'},
@@ -175,11 +178,11 @@ def main():
               f'{sum(1 for nm in PLACES.values() if yr["cities"].get(nm))}/4 cities')
 
     # ---- validation ----
-    print('\n=== validation: 2024 fetch must reproduce byage_min exactly ===')
-    y24 = fetch_year(2024)
+    print(f'\n=== validation: {CUR} fetch must reproduce byage_min exactly ===')
+    ycur = fetch_year(CUR)
     worst = 0; checked = 0
     for t in targets:
-        row = y24['metros'].get(t['code'])
+        row = ycur['metros'].get(t['code'])
         if not row: continue
         checked += 1
         for i in range(9):

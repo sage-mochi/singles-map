@@ -1,4 +1,5 @@
 import pandas as pd, requests, json, sys, time, os
+import config
 
 KEY=os.environ.get('CENSUS_API_KEY')
 if not KEY: raise SystemExit('Set CENSUS_API_KEY (free: https://api.census.gov/data/key_signup.html)')
@@ -37,7 +38,7 @@ if os.path.exists('tract_pop.json'):
 else:
     pop={}
     for st in states:
-        rows=get('https://api.census.gov/data/2020/dec/pl',
+        rows=get(config.DECENNIAL_PL,
                  {'get':'P1_001N','for':'tract:*','in':f'state:{st}','key':KEY})
         idx={h:i for i,h in enumerate(rows[0])}
         for row in rows[1:]:
