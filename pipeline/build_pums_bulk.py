@@ -30,6 +30,21 @@ CACHE = ROOT / 'pipeline' / 'pums_cache'
 CACHE.mkdir(parents=True, exist_ok=True)
 
 BASE = config.PUMS_BULK_BASE
+VTAG = '1yr'                     # '5yr' switches URLs + cache namespace (set_vintage)
+
+def set_vintage(v):
+    """Flip the module between the 1-year and 5-year PUMS release. Caches are
+    namespaced so both vintages coexist; the 1-year cache keeps its original
+    filenames, so an existing 1-year download is not invalidated."""
+    global BASE, VTAG
+    assert v in ('1yr', '5yr'), v
+    VTAG = v
+    BASE = config.PUMS_BULK_BASE if v == '1yr' else config.PUMS5_BULK_BASE
+
+def _pkl(prefix, st):
+    """Per-state pickle cache path, namespaced by vintage (1yr keeps bare names)."""
+    return CACHE / f'{prefix}{"" if VTAG == "1yr" else "5yr_"}{st}.pkl'
+
 # FIPS -> lowercase postal, for the csv_p{ab}.zip filenames.
 ST_AB = {'01':'al','02':'ak','04':'az','05':'ar','06':'ca','08':'co','09':'ct',
  '10':'de','11':'dc','12':'fl','13':'ga','15':'hi','16':'id','17':'il','18':'in',
@@ -51,7 +66,7 @@ INC_BINS = [-np.inf, 25_000, 50_000, 75_000, 100_000, np.inf]
 
 # ---- download + read one state -------------------------------------------------
 def fetch_zip(st):
-    fn = CACHE / f'csv_p{ST_AB[st]}.zip'
+    fn = CACHE / (f'csv_p{ST_AB[st]}.zip' if VTAG == '1yr' else f'csv5_p{ST_AB[st]}.zip')
     if fn.exists() and fn.stat().st_size > 0:
         return fn
     url = f'{BASE}/csv_p{ST_AB[st]}.zip'
@@ -76,7 +91,7 @@ def read_state(st):
 
 # ---- recode + the four marginal aggregations -----------------------------------
 def aggregate_state(st):
-    pkl = CACHE / f'aggm3_{st}.pkl'
+    pkl = _pkl('aggm3_', st)
     if pkl.exists():
         return pickle.load(open(pkl, 'rb'))
     df = read_state(st)
@@ -160,9 +175,13 @@ def bands_mw(frame, extra=None):
     return out
 
 def main():
+    args = sys.argv[1:]
+    if '--5yr' in args:
+        set_vintage('5yr'); args.remove('--5yr')
+        print(f'(5-year vintage: {config.VINTAGE5})')
     states = STATES
-    if len(sys.argv) > 1 and sys.argv[1] == '--states':
-        states = sys.argv[2].split(',')
+    if len(args) >= 2 and args[0] == '--states':
+        states = args[1].split(',')
         print(f'(subset run: {states})')
     xwl = load_xwalk_long()
     nat = combine(states)
@@ -192,7 +211,8 @@ def main():
     for cb, v in bands_mw(emp).items():          metros.setdefault(cb,{})['emp']  = v
     for cb, v in bands_mw(inc,  'incb').items():  metros.setdefault(cb,{})['inc']  = v
 
-    out = {'meta': {'vintage':f'{config.VINTAGE} PUMS',
+    vintage = config.VINTAGE5 if VTAG == '5yr' else config.VINTAGE
+    out = {'meta': {'vintage':f'{vintage} PUMS',
                     'race_def':'mutually-exclusive (Hispanic, then NH White/Black/Asian/Two+/Other)',
                     'employed_def':'ESR in {1,2,4,5}',
                     'income':f'PINCP * ADJINC/1e6 ({config.ACS_YEAR} dollars)',
@@ -200,15 +220,22 @@ def main():
                     'states': states},
            'metros': metros}
     full = len(states) == len(STATES)
-    name = 'pums_metro_m3.json' if full else 'pums_metro_m3_subset.json'
+    stem = 'pums_metro_m3_5yr' if VTAG == '5yr' else 'pums_metro_m3'
+    name = f'{stem}.json' if full else f'{stem}_subset.json'
     json.dump(out, open(DATA / name, 'w'))
-    # backward-compatible base file (the M2 deliverable shape)
-    if full:
+    # backward-compatible base file (the M2 deliverable shape) — 1-year only
+    if full and VTAG == '1yr':
         compat = {cb: {'m': metros[cb]['base']['m'], 'w': metros[cb]['base']['w']}
                   for cb in metros}
         json.dump(compat, open(DATA / 'pums_metro_singles.json', 'w'))
     print(f'\nwrote {name}  ({len(metros)} metros)')
-    reconcile(base, nat_total, unmatched, full)
+    if VTAG == '1yr':
+        reconcile(base, nat_total, unmatched, full)
+    else:
+        print(f'=== 5-year national single 20-64 (bulk-CSV base): {nat_total:,.0f} '
+              f'(1-yr published anchor N/A — different vintage) ===')
+        if unmatched:
+            print(f'  PUMAs w/o crosswalk match: {len(unmatched)}  e.g. {unmatched[:5]}')
 
 # ---- validation: base estimate vs M2 / published -------------------------------
 def reconcile(base, nat_total, unmatched, full):

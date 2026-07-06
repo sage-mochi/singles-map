@@ -17,12 +17,16 @@ import build_pums_bulk as B          # fetch_zip / read_state / load_xwalk_long 
 
 AGES = list(range(20, 65))           # 45 single-year cells, matching the single 20-64 universe
 RACES = ['white', 'black', 'asian', 'hisp', 'two', 'other']
+# Sparse race×age cells below this are noise-dominated (relative MOE > 100%) and sit
+# far under the seeker's 1,000-reciprocal-match floor, so dropping them can't change a
+# surfaced result — it only trims page weight (notably under the ~5x-denser 5-year sample).
+SPARSE_FLOOR = 10
 
 def aggregate_age_state(st):
     """PUMA x single-year-age x sex x RACE aggregate (all 81 weight cols). The
     sex-level totals are recovered by summing the race cells (replicate columns
     are linear, so both levels keep exact SDR MOEs)."""
-    pkl = B.CACHE / f'aggage2_{st}.pkl'          # v2 cache: adds race
+    pkl = B._pkl('aggage2_', st)                 # v2 cache: adds race (vintage-namespaced)
     if pkl.exists():
         return pickle.load(open(pkl, 'rb'))
     df = B.read_state(st)
@@ -37,9 +41,13 @@ def aggregate_age_state(st):
     return agg
 
 def main():
+    args = sys.argv[1:]
+    if '--5yr' in args:
+        B.set_vintage('5yr'); args.remove('--5yr')
+        print(f'(5-year vintage: {B.config.VINTAGE5})')
     states = B.STATES
-    if len(sys.argv) > 2 and sys.argv[1] == '--states':
-        states = sys.argv[2].split(',')
+    if len(args) >= 2 and args[0] == '--states':
+        states = args[1].split(',')
         print(f'(subset run: {states})')
 
     xwl = B.load_xwalk_long()
@@ -70,12 +78,13 @@ def main():
         a = int(r.AGEP)
         if a < 20 or a > 64: continue
         est = round(r.est)
-        if est <= 0: continue                      # sparse: zero cells dropped
+        if est < SPARSE_FLOOR: continue            # sparse: drop noise-dominated cells
         node = metros.setdefault(r.cbsa, {'m':[0]*45,'w':[0]*45,'m_moe':[0]*45,'w_moe':[0]*45})
         node.setdefault('race', {}).setdefault(r.race, {}).setdefault(r.sex, {})[a] = \
             [est, round(r.moe)]
 
-    out = {'meta': {'vintage':f'{B.config.VINTAGE} PUMS',
+    vintage = B.config.VINTAGE5 if B.VTAG == '5yr' else B.config.VINTAGE
+    out = {'meta': {'vintage':f'{vintage} PUMS',
                     'ages': AGES,
                     'note':'single (MAR!=1) men/women by single year of age, per CBSA; '
                            'MOE 90% from 80 replicate weights (SDR). race = sparse '
@@ -83,7 +92,8 @@ def main():
                     'states': states},
            'metros': metros}
     full = len(states) == len(B.STATES)
-    name = 'pums_metro_age.json' if full else 'pums_metro_age_subset.json'
+    stem = 'pums_metro_age_5yr' if B.VTAG == '5yr' else 'pums_metro_age'
+    name = f'{stem}.json' if full else f'{stem}_subset.json'
     json.dump(out, open(B.DATA / name, 'w'))
     print(f'\nwrote {name}  ({len(metros)} metros, ages 20-64)')
 

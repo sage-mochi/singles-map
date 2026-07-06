@@ -42,13 +42,53 @@ def minify_json(text):
     Source files stay human-diffable; only the deployed HTML is minified."""
     return json.dumps(json.loads(text), separators=(",", ":"), ensure_ascii=False)
 
+def compact(obj):
+    return json.dumps(obj, separators=(",", ":"), ensure_ascii=False)
+
+def optional(name):
+    """Return the path to an optional data file, or None if absent."""
+    for d in SEARCH_DIRS:
+        p = d / name
+        if p.exists():
+            return p
+    return None
+
+def splice_race_5yr(spine_name, five_name, label):
+    """Hybrid vintage: use the 1-year file as the spine but replace each metro's
+    `race` node with the 5-year one (the thin cross-tab that 1-year can't resolve).
+    Everything else (base/edu/econ, or the overall age counts) stays 1-year. Falls
+    back to pure 1-year if the 5-year file hasn't been built yet."""
+    spine = json.loads(find(spine_name).read_text(encoding="utf-8"))
+    f5 = optional(five_name)
+    if not f5:
+        print(f"note: {five_name} absent — {label} race stays 1-year")
+        return compact(spine)
+    five = json.loads(f5.read_text(encoding="utf-8"))
+    n = 0
+    for cb, node in spine["metros"].items():
+        r5 = five["metros"].get(cb, {}).get("race")
+        if r5 is not None:
+            node["race"] = r5; n += 1
+    spine.setdefault("meta", {})["race_vintage"] = five["meta"]["vintage"]
+    print(f"spliced 5-year race into {n} metros ({label}, from {f5.name})")
+    return compact(spine)
+
 def main():
     tpl = find(TEMPLATE_NAME).read_text(encoding="utf-8")
     out = tpl
+    # __M3__ and __AGE__ carry a hybrid vintage: their race node comes from the
+    # 5-year PUMS (thin cross-tab), the rest stays 1-year. Built specially below.
+    special = {
+        "__M3__":  lambda: splice_race_5yr("pums_metro_m3.json",  "pums_metro_m3_5yr.json",  "M3"),
+        "__AGE__": lambda: splice_race_5yr("pums_metro_age.json", "pums_metro_age_5yr.json", "age"),
+    }
     for ph, fname in INJECT.items():
         if ph not in out:
             sys.exit(f"ERROR: placeholder {ph} missing from template")
-        out = out.replace(ph, minify_json(find(fname).read_text(encoding="utf-8")))
+        payload = special[ph]() if ph in special else minify_json(find(fname).read_text(encoding="utf-8"))
+        out = out.replace(ph, payload)
+    # 5-year range scalar for the race-vintage copy (e.g. "2020–2024").
+    out = out.replace("__ACS5RANGE__", config.ACS5_RANGE)
 
     # Vintage scalar: the current ACS year, injected into copy + the year slider's
     # "latest" tick. Guard that the history file agrees with config.
@@ -59,7 +99,7 @@ def main():
                  f"re-run build_years.py")
     out = out.replace("__ACSYEAR__", str(config.ACS_YEAR))
 
-    leftover = [ph for ph in list(INJECT) + ["__ACSYEAR__"] if ph in out]
+    leftover = [ph for ph in list(INJECT) + ["__ACSYEAR__", "__ACS5RANGE__"] if ph in out]
     if leftover:
         sys.exit(f"ERROR: unfilled placeholders remain: {leftover}")
 
