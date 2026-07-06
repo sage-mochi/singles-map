@@ -325,11 +325,17 @@
   </div>
 
   <h3 class="ah">The asymmetry, in one exhibit</h3>
-  <p class="ap">Run the matchmaking benchmark at every age — national single counts, each age's default (middle-50%) search range — and the sexes trace <b>opposite arcs</b>. A man's market only <i>tightens</i> through his 30s, peaking near <b>190 rivals per 100 reciprocal matches around 40</b> — because he keeps reaching into a younger, scarcer, more-contested pool — before easing to ~94 by 60; a woman's is toughest young-to-midlife (~120–145 through her 30s and 40s) and never spikes the way his does. <b>The curves don't cross until the late 40s: the male squeeze runs deep into midlife.</b> The same-age sex ratio of §1 is structurally unable to see this — it is the age-gap kernel of §3, applied to the singles pool, that produces it. (The kernel is built from <i>recently-formed</i> unions, so an older seeker's odds reflect who pairs at that age today, not decades-old marriages.)</p>
+  <p class="ap">Run the matchmaking benchmark at every age — national single counts, each age's default (middle-50%) search range — and the sexes trace <b>opposite arcs</b>. A man's market only <i>tightens</i> through his 30s, peaking near <b>190 rivals per 100 reciprocal matches around 40</b> — because he keeps reaching into a younger, scarcer, more-contested pool — before easing to ~94 by 60; a woman's is toughest young-to-midlife (~120–145 through her 30s and 40s) and never spikes the way his does. <b>The curves don't cross until the late 40s: the male squeeze runs deep into midlife.</b> The same-age sex ratio of §1 is structurally unable to see this — it is the age-gap kernel of §4, applied to the singles pool, that produces it. (The kernel is built from <i>recently-formed</i> unions, so an older seeker's odds reflect who pairs at that age today, not decades-old marriages.)</p>
   <div class="figure"><div class="chart-cap">Your national market, by seeker age — rivals per 100 reciprocal matches (default search range at each age, race-blind)</div>
     <svg id="asym" viewBox="0 0 960 340" role="img" aria-label="National matchmaking benchmark by seeker age and sex"></svg></div>
 
-  <h2 class="sec">§3 · The mechanism: women marry earlier — and marry older men</h2>
+  <h2 class="sec">§3 · Where you live matters more the narrower your search</h2>
+  <p class="sub"><b>Claim: geography is a secondary lever — until the search narrows to a group concentrated in a few metros.</b> The race filter in §2 doesn't just recolor the map; it changes how much the map can help you at all.</p>
+  <p class="ap">Each bar below spans the single sex ratio (men per 100 women, ages 25–34) from the 10th- to the 90th-percentile metro, <b>weighted by where singles of that group actually live</b> so a handful of tiny metros can't distort it. Search across <b>everyone</b> and the range is only ~23 points (104 to 127): moving to a top-decile metro shifts your ratio by roughly ±10% — real, but the secondary lever this thesis claims it is. Narrow to a same-race partner, though, and it depends entirely on <i>which</i>. <b>White</b> and <b>Hispanic</b> singles live nearly everywhere, so the range barely widens. But the range for a <b>Black</b> partner grows by half again — and skews <span class="women">female</span> (median 93 men per 100 women) — while an <b>Asian</b> partner's more than doubles, skewing <span class="men">male</span> (median 121), because those pools concentrate in a few metros whose balance swings hard. That is the abstract's <em>"where climbs the ranks as the search narrows,"</em> quantified — and quantified honestly: the raw best-versus-worst metros look several times more extreme still, but most of that is small-sample noise these population-weighted bands strip out.</p>
+  <div class="figure"><div class="chart-cap">How far the single sex ratio swings across metros, by who you're looking for</div>
+    <svg id="leverage" viewBox="0 0 960 300" role="img" aria-label="Geographic spread of the single sex ratio by search group"></svg></div>
+
+  <h2 class="sec">§4 · The mechanism: women marry earlier — and marry older men</h2>
   <p class="sub"><b>Claim: one mechanism drives both halves of the map — and the matchmaking asymmetry above.</b> Three findings, and the decomposition behind the one that puzzles people most.</p>
   <div class="analysis" id="analysis"></div>
 
@@ -343,7 +349,7 @@
   </div>
   <div class="ap" id="puzzleBody"></div>
 
-  <h2 class="sec">§4 · The rankings, with their uncertainty</h2>
+  <h2 class="sec">§5 · The rankings, with their uncertainty</h2>
   <p class="sub"><b>Exhibits: the extremes of the distribution — with their error bars.</b> Top 100 metros per under-40 bracket, computed from PUMS microdata (metros with 8,000+ singles in the bracket; the five Connecticut metros use published estimates, marked †). Every ratio carries its ±90% margin, and ranks that are not statistically distinguishable from the row above are marked ≈ — the exact order among tied rows is noise. In the <b>matchmaking view</b>, this section becomes <i>your</i> personal ranking.</p>
   <div class="toolbar" style="margin-bottom:8px">
     <span class="lab">Race / origin</span>
@@ -367,7 +373,7 @@
   <p class="sub" id="tblNote" style="margin-top:8px;display:none"></p>
   <div class="tbl-grid" id="ratioTables"></div>
 
-  <h2 class="sec">§5 · Methods, limitations & honest caveats</h2>
+  <h2 class="sec">§6 · Methods, limitations & honest caveats</h2>
   <div class="notes" id="notes"></div>
 
   <footer>
@@ -1091,6 +1097,49 @@ function start(){
       .text("seeker age · each age uses its default (middle-50%) search range · past ~60 the 20–64 data window truncates the range");
   }
 
+  /* ---- geographic-leverage exhibit (static): how far the single sex ratio
+     swings across metros, by search group. 10th/median/90th are count-weighted
+     percentiles over the M3 metros (weighted by that group's single 25-34 pool,
+     so small-sample metros can't distort the range). Values baked from the
+     pipeline; see docs — the raw best-vs-worst is far wider but noise-driven. */
+  function leverageChart(){
+    const svg=d3.select("#leverage"); if(svg.empty()) return;
+    const W=960,H=300,mg={t:52,r:118,b:46,l:150}, iw=W-mg.l-mg.r, ih=H-mg.t-mg.b;
+    const rows=[
+      {lab:"Any single",      note:"(all groups)", p10:104,md:112,p90:127,tilt:"m"},
+      {lab:"…who is White",    note:"", p10:109,md:118,p90:134,tilt:"m"},
+      {lab:"…who is Hispanic", note:"", p10:106,md:113,p90:129,tilt:"m"},
+      {lab:"…who is Black",    note:"", p10:81, md:93, p90:120,tilt:"w"},
+      {lab:"…who is Asian",    note:"", p10:100,md:121,p90:161,tilt:"m"}
+    ];
+    const x=d3.scaleLinear().domain([70,168]).range([mg.l,mg.l+iw]);
+    const rowH=ih/rows.length, bH=16;
+    [80,100,120,140,160].forEach(t=>{
+      const bold=t===100;
+      svg.append("line").attr("x1",x(t)).attr("x2",x(t)).attr("y1",mg.t-6).attr("y2",mg.t+ih-6)
+        .attr("class",bold?"c-axis":"c-grid").attr("stroke-dasharray",bold?null:"2 3").attr("opacity",bold?.9:1);
+      svg.append("text").attr("class","c-tick").attr("x",x(t)).attr("y",mg.t+ih+8).attr("text-anchor","middle").text(t);
+    });
+    svg.append("text").attr("class","c-tick").attr("x",x(100)).attr("y",mg.t-14).attr("text-anchor","middle")
+      .attr("style","fill:var(--ink);font-weight:600").text("100 = even");
+    svg.append("text").attr("class","c-tick").attr("x",mg.l+iw/2).attr("y",H-8).attr("text-anchor","middle")
+      .text("single men per 100 single women, ages 25–34 · bar = 10th-to-90th-percentile metro (population-weighted)");
+    rows.forEach((r,i)=>{
+      const cy=mg.t+i*rowH+rowH/2, col=r.tilt==="m"?"var(--men)":"var(--women)";
+      svg.append("rect").attr("x",x(r.p10)).attr("y",cy-bH/2).attr("width",x(r.p90)-x(r.p10)).attr("height",bH)
+        .attr("fill",col).attr("opacity",.16);
+      [r.p10,r.p90].forEach(p=>svg.append("line").attr("x1",x(p)).attr("x2",x(p)).attr("y1",cy-bH/2).attr("y2",cy+bH/2).attr("stroke",col).attr("stroke-width",1));
+      svg.append("line").attr("x1",x(r.md)).attr("x2",x(r.md)).attr("y1",cy-bH/2-3).attr("y2",cy+bH/2+3).attr("stroke",col).attr("stroke-width",2.6);
+      svg.append("text").attr("class","c-tick").attr("x",x(r.md)).attr("y",cy-bH/2-6).attr("text-anchor","middle")
+        .attr("style","fill:"+col+";font-weight:600").text(r.md);
+      svg.append("text").attr("class","c-tick").attr("x",mg.l-12).attr("y",cy+(r.note?0:4)).attr("text-anchor","end")
+        .attr("style","fill:var(--ink);font-size:12px"+(i===0?";font-weight:600":"")).text(r.lab);
+      if(r.note) svg.append("text").attr("class","c-tick").attr("x",mg.l-12).attr("y",cy+13).attr("text-anchor","end").text(r.note);
+      svg.append("text").attr("class","c-tick").attr("x",x(r.p90)+9).attr("y",cy+4).attr("text-anchor","start")
+        .attr("style","fill:var(--ink-soft);font-weight:600").text((r.p90-r.p10)+"-pt swing");
+    });
+  }
+
   /* ---- ratio tables (toggle direction) + analysis ---- */
   const ORDER=["20-24","25-29","30-34","35-39"];
   const TITLES={"20-24":"Ages 20–24","25-29":"Ages 25–29","30-34":"Ages 30–34","35-39":"Ages 35–39"};
@@ -1174,7 +1223,7 @@ function start(){
     [...document.querySelectorAll("#tblRaceSeg button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.r===tblRace));
   }
 
-  /* ---- seeker-mode ranking: §4 becomes your personal table ---- */
+  /* ---- seeker-mode ranking: §5 becomes your personal table ---- */
   function renderSeekerTable(){
     const wrap=document.getElementById("ratioTables"); wrap.innerHTML="";
     const nr=natRef(), rows=[];
@@ -1302,6 +1351,7 @@ function start(){
   if(!seeker.on) renderTables(tblDir,tblRace);   // seeker case: update()->syncTables renders the personal table
   update(false);
   asymChart();
+  leverageChart();
 }
 start();
 </script>
