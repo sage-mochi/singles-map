@@ -193,8 +193,8 @@
       we measure who actually pairs with whom by age and race, and compute each seeker's market —
       rivals per <em>reciprocal</em> match — for every metro, with margins of error from the
       Census replicate weights. The levers of a single person's market rank: <b>(1) who you
-      are</b> — a 30-year-old man faces ~152 rivals per 100 reciprocal matches nationally, a
-      30-year-old woman ~131; <b>(2) what you seek</b> — income and cross-race filters move
+      are</b> — a 30-year-old man faces ~165 rivals per 100 reciprocal matches nationally, a
+      30-year-old woman ~128; <b>(2) what you seek</b> — income and cross-race filters move
       markets by multiples; <b>(3) when you are in life</b> — the age flip; <b>(4) where you
       live</b> — typically ±10–15% around the national benchmark, <em>with "where" climbing the
       ranks as the search narrows</em>. The map below is the argument, interactive: every claim
@@ -325,7 +325,7 @@
   </div>
 
   <h3 class="ah">The asymmetry, in one exhibit</h3>
-  <p class="ap">Run the matchmaking benchmark at every age — national single counts, each age's default (middle-50%) search range — and the sexes trace <b>opposite arcs</b>. A man's market is hardest in his prime years (~160 rivals per 100 reciprocal matches around 30) and eases with age (~88 by 60); a woman's starts easiest at 20 (~107) and tightens through midlife (~150 in her 50s). <b>The curves cross in the mid-30s: the market clock runs in opposite directions.</b> The same-age sex ratio of §1 is structurally unable to see this — it is the age-gap kernel of §3, applied to the singles pool, that produces it.</p>
+  <p class="ap">Run the matchmaking benchmark at every age — national single counts, each age's default (middle-50%) search range — and the sexes trace <b>opposite arcs</b>. A man's market only <i>tightens</i> through his 30s, peaking near <b>190 rivals per 100 reciprocal matches around 40</b> — because he keeps reaching into a younger, scarcer, more-contested pool — before easing to ~94 by 60; a woman's is toughest young-to-midlife (~120–145 through her 30s and 40s) and never spikes the way his does. <b>The curves don't cross until the late 40s: the male squeeze runs deep into midlife.</b> The same-age sex ratio of §1 is structurally unable to see this — it is the age-gap kernel of §3, applied to the singles pool, that produces it. (The kernel is built from <i>recently-formed</i> unions, so an older seeker's odds reflect who pairs at that age today, not decades-old marriages.)</p>
   <div class="figure"><div class="chart-cap">Your national market, by seeker age — rivals per 100 reciprocal matches (default search range at each age, race-blind)</div>
     <svg id="asym" viewBox="0 0 960 340" role="img" aria-label="National matchmaking benchmark by seeker age and sex"></svg></div>
 
@@ -928,10 +928,10 @@ function start(){
     document.getElementById("seekerHint").innerHTML=
       `Your <b>market ratio</b> = same-sex rivals ÷ <b>reciprocal</b> matches in your range, from PUMS single counts by single year of age. `+
       `<b>Matches</b> = single ${oppW} aged ${seeker.lo}–${seeker.hi}, each discounted by <b>reciprocity</b>: how often ${oppW} of that exact age actually partner with someone aged ${seeker.age} `+
-      `(their age group's partner-age curve <b>K</b>, measured from 70M real couples — realized pairings, so it reflects what happens, not stated preference). `+
+      `(their age group's partner-age curve <b>K</b>, measured from <b>recently-formed</b> unions — cohabiting couples plus marriages of the last few years — so an older seeker's odds reflect who pairs at that age today, not decades-old marriages; realized pairings, what happens, not stated preference). `+
       `<b>Rivals</b> = single ${rivW} of every age, weighted by their own age's K aimed into your range — ${rivW} of nearby ages chasing the same partners count too; no extra discount is applied to rivals because the realized K is already the two-sided outcome. `+
       `Because the ratio's absolute level depends on how concentrated K is, <b>colors compare each metro to the national market computed the same way for you</b> (shown as "US" in the tooltip) rather than to a fixed 100. `+
-      `The default range is the middle 50% of real ${seeker.sex==="m"?"men":"women"}'s partners at your age; drag the sliders to set your own.`+raceNote+` `+
+      `The default range is the middle 50% of ${seeker.sex==="m"?"men":"women"}'s partners at your age in recently-formed unions; drag the sliders to set your own.`+raceNote+` `+
       `Covers 222 metros + New York + Los Angeles (not the 5 Connecticut metros or city insets).${natWarn}`;
   }
   function setSeeker(on){

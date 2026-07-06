@@ -17,10 +17,11 @@ import sys, io, json, pickle, zipfile
 import numpy as np, pandas as pd
 import build_pums_bulk as B
 
-COLS = ['SERIALNO', 'RELSHIPP', 'AGEP', 'SEX', 'PWGTP', 'RAC1P', 'HISP']
+COLS = ['SERIALNO', 'RELSHIPP', 'AGEP', 'SEX', 'PWGTP', 'RAC1P', 'HISP', 'MARHYP']
 SEEKER_AGES = list(range(18, 76))
 GAPS = list(range(-20, 21))          # partner_age - seeker_age
 RACES = ['white', 'black', 'asian', 'hisp', 'two', 'other']
+FORM_WINDOW = 7                      # a marriage is "recent formation" if within this many years
 
 def recode_race(df):
     """Mutually-exclusive race, identical to build_pums_bulk: Hispanic first."""
@@ -29,7 +30,7 @@ def recode_race(df):
         ['hisp', 'white', 'black', 'asian', 'two'], default='other')
 
 def couples_state(st):
-    pkl = B.CACHE / f'couples2_{st}.pkl'          # v2 cache: adds race
+    pkl = B.CACHE / f'couples3_{st}.pkl'          # v3 cache: adds MARHYP (formation year)
     if pkl.exists():
         return pickle.load(open(pkl, 'rb'))
     z = zipfile.ZipFile(B.fetch_zip(st))
@@ -37,18 +38,24 @@ def couples_state(st):
     df = pd.read_csv(io.BytesIO(z.read(member)), usecols=COLS, low_memory=False)
     df = df[df.RELSHIPP.isin([20, 21, 22])].copy()
     df['rc'] = recode_race(df)
-    ref = df[df.RELSHIPP == 20][['SERIALNO','AGEP','SEX','PWGTP','rc']].rename(
-            columns={'AGEP':'a0','SEX':'s0','PWGTP':'wt','rc':'rc0'})
-    par = df[df.RELSHIPP.isin([21, 22])][['SERIALNO','AGEP','SEX','rc']].rename(
-            columns={'AGEP':'a1','SEX':'s1','rc':'rc1'})
+    ref = df[df.RELSHIPP == 20][['SERIALNO','AGEP','SEX','PWGTP','rc','MARHYP']].rename(
+            columns={'AGEP':'a0','SEX':'s0','PWGTP':'wt','rc':'rc0','MARHYP':'my0'})
+    par = df[df.RELSHIPP.isin([21, 22])][['SERIALNO','AGEP','SEX','rc','RELSHIPP']].rename(
+            columns={'AGEP':'a1','SEX':'s1','rc':'rc1','RELSHIPP':'rel1'})
     cp = ref.merge(par, on='SERIALNO')
     cp = cp[cp.s0 != cp.s1]                       # opposite-sex pairs only
     man  = np.where(cp.s0 == 1, cp.a0, cp.a1)
     wom  = np.where(cp.s0 == 2, cp.a0, cp.a1)
     manr = np.where(cp.s0 == 1, cp.rc0, cp.rc1)
     womr = np.where(cp.s0 == 2, cp.rc0, cp.rc1)
+    # Marriage year applies only when the partner is a spouse (RELSHIPP 21) — then
+    # both partners' MARHYP is the year they married each other, so the ref's is it.
+    # For an unmarried partner (22) MARHYP is the ref's OLD marriage (or blank), not
+    # this union's date, so it's dropped and the union is treated as current.
+    spouse = (cp.rel1 == 21).to_numpy()
+    mary = np.where(spouse, cp.my0.to_numpy(dtype='float'), np.nan)
     out = pd.DataFrame({'man': man, 'wom': wom, 'manr': manr, 'womr': womr,
-                        'wt': cp.wt.values})
+                        'wt': cp.wt.values, 'spouse': spouse, 'mary': mary})
     pickle.dump(out, open(pkl, 'wb'))
     return out
 
@@ -140,22 +147,39 @@ def main():
     cp = pd.concat(parts, ignore_index=True)
     print(f'\ncouples: {len(cp):,} records, weighted {cp.wt.sum():,.0f}')
 
-    man, wom, wt = cp.man.to_numpy(), cp.wom.to_numpy(), cp.wt.to_numpy(float)
-    m_by, m_gap = kernel_for(man, wom, wt)    # male seeker -> female partner
-    w_by, w_gap = kernel_for(wom, man, wt)    # female seeker -> male partner
-    m_cg = cond_gap(man, wom, wt)             # per-age conditional kernels (v3 reciprocity)
-    w_cg = cond_gap(wom, man, wt)
-    race_pair, race_aff, race_marg = race_tables(cp)
+    # Formation subset: current unions, not surviving-couple stock. A couple counts
+    # if it is a cohabiting partnership (always current) OR a marriage formed within
+    # FORM_WINDOW years. This removes the survivorship/vintage bias — an older
+    # seeker's realized-partner distribution then reflects who pairs at that age NOW,
+    # not who married them decades ago (re-partnering gaps run wider than first).
+    CUR = B.config.ACS_YEAR
+    formation = (~cp.spouse) | (cp.spouse & ((CUR - cp.mary) <= FORM_WINDOW))
+    cpF = cp[formation]
+    print(f'formation subset ({CUR-FORM_WINDOW}-{CUR} marriages + cohabiting): '
+          f'{len(cpF):,} records, weighted {cpF.wt.sum():,.0f} '
+          f'({100*cpF.wt.sum()/cp.wt.sum():.0f}% of couples)')
+
+    manF, womF, wtF = cpF.man.to_numpy(), cpF.wom.to_numpy(), cpF.wt.to_numpy(float)
+    m_by, m_gap = kernel_for(manF, womF, wtF)   # male seeker -> female partner (formation)
+    w_by, w_gap = kernel_for(womF, manF, wtF)   # female seeker -> male partner
+    m_cg = cond_gap(manF, womF, wtF)            # per-age conditional kernels (v3 reciprocity)
+    w_cg = cond_gap(womF, manF, wtF)
+    race_pair, race_aff, race_marg = race_tables(cp)   # race affinity: all couples (stable)
 
     out = {'meta': {'vintage':f'{B.config.VINTAGE} PUMS',
-                    'definition':'opposite-sex married/partnered couples (RELSHIPP 20 + 21/22)',
-                    'caveat':'realized couples reflect preference AND past availability, not pure '
-                             'preference; the tool exposes the range as an adjustable slider.',
+                    'definition':f'opposite-sex unions. Age kernels use the FORMATION subset '
+                                 f'(cohabiting partners + marriages formed {CUR-FORM_WINDOW}-{CUR} '
+                                 f'via MARHYP) to reflect current pairing, not surviving-couple '
+                                 f'stock. Race tables use all couples.',
+                    'caveat':'realized unions reflect preference AND availability, not pure '
+                             'preference; the tool exposes the range as an adjustable slider. '
+                             'Formation subset is married-recent + all cohabiting (MARHYP dates '
+                             'marriages only).',
                     'condGap':'P(gap | seeker age), triangular +-2 age smoothing; used for '
-                              'rival aim and reciprocity discounting (v3).',
+                              'rival aim and reciprocity discounting (v3). Formation subset.',
                     'race':'racePair = P(partner race | own race, sex), realized shares '
                            '(rival aim); raceAff = joint/(marginal*marginal) affinity, '
-                           'group size factored out, symmetric (reciprocity). National; '
+                           'group size factored out, symmetric (reciprocity). National, all couples; '
                            'age-gap and race treated as independent factors.',
                     'states': states},
            'bySex': {'m': m_by, 'w': w_by},
@@ -166,13 +190,20 @@ def main():
     name = 'age_kernel.json' if full else 'age_kernel_subset.json'
     json.dump(out, open(B.DATA / name, 'w'))
     print(f'wrote {name}')
-    # sanity: typical gap by a few seeker ages
-    print('=== male seeker -> partner age (p25/p50/p75) ===')
-    for a in (25, 30, 40, 50):
-        if a in m_by: r=m_by[a]; print(f'  man {a}: women {r["p25"]}-{r["p75"]} (median {r["p50"]}, mean {r["mean"]})')
-    print('=== female seeker -> partner age ===')
-    for a in (25, 30, 40, 50):
-        if a in w_by: r=w_by[a]; print(f'  woman {a}: men {r["p25"]}-{r["p75"]} (median {r["p50"]}, mean {r["mean"]})')
+
+    # Formation vs all-couples comparison (the bias this fixes): older seekers'
+    # ranges should widen / skew younger for men when using formation.
+    a_m_by, _ = kernel_for(cp.man.to_numpy(), cp.wom.to_numpy(), cp.wt.to_numpy(float))
+    a_w_by, _ = kernel_for(cp.wom.to_numpy(), cp.man.to_numpy(), cp.wt.to_numpy(float))
+    print('=== default range: all-couples  ->  formation (p25-p75) ===')
+    for a in (25, 30, 40, 50, 55):
+        if a in m_by and a in a_m_by:
+            print(f'  man {a}:   women {a_m_by[a]["p25"]}-{a_m_by[a]["p75"]}  ->  {m_by[a]["p25"]}-{m_by[a]["p75"]}'
+                  f'   (n {m_by[a]["n"]:,})')
+    for a in (25, 30, 40, 50, 55):
+        if a in w_by and a in a_w_by:
+            print(f'  woman {a}: men   {a_w_by[a]["p25"]}-{a_w_by[a]["p75"]}  ->  {w_by[a]["p25"]}-{w_by[a]["p75"]}'
+                  f'   (n {w_by[a]["n"]:,})')
     print('=== race pairing (realized shares, men -> partner) ===')
     for r in RACES:
         row = race_pair['m'].get(r, {})
