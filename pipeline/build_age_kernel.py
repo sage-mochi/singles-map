@@ -160,11 +160,11 @@ def main():
           f'({100*cpF.wt.sum()/cp.wt.sum():.0f}% of couples)')
 
     manF, womF, wtF = cpF.man.to_numpy(), cpF.wom.to_numpy(), cpF.wt.to_numpy(float)
-    m_by, m_gap = kernel_for(manF, womF, wtF)   # male seeker -> female partner (formation)
-    w_by, w_gap = kernel_for(womF, manF, wtF)   # female seeker -> male partner
+    m_by, _ = kernel_for(manF, womF, wtF)   # male seeker -> female partner (formation)
+    w_by, _ = kernel_for(womF, manF, wtF)   # female seeker -> male partner
     m_cg = cond_gap(manF, womF, wtF)            # per-age conditional kernels (v3 reciprocity)
     w_cg = cond_gap(womF, manF, wtF)
-    race_pair, race_aff, race_marg = race_tables(cp)   # race affinity: all couples (stable)
+    race_pair, race_aff, _ = race_tables(cp)   # race affinity: all couples (stable)
 
     out = {'meta': {'vintage':f'{B.config.VINTAGE} PUMS',
                     'definition':f'opposite-sex unions. Age kernels use the FORMATION subset '
@@ -182,10 +182,9 @@ def main():
                            'group size factored out, symmetric (reciprocity). National, all couples; '
                            'age-gap and race treated as independent factors.',
                     'states': states},
-           'bySex': {'m': m_by, 'w': w_by},
-           'gapDist': {'m': m_gap, 'w': w_gap},
-           'condGap': {'m': m_cg, 'w': w_cg},
-           'racePair': race_pair, 'raceAff': race_aff, 'raceMarg': race_marg}
+           'bySex': {'m': m_by, 'w': w_by},          # default ranges + asymmetry chart
+           'condGap': {'m': m_cg, 'w': w_cg},         # reciprocity + rival aim
+           'racePair': race_pair, 'raceAff': race_aff}   # race rival aim + reciprocity
     full = len(states) == len(B.STATES)
     name = 'age_kernel.json' if full else 'age_kernel_subset.json'
     json.dump(out, open(B.DATA / name, 'w'))

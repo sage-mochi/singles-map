@@ -403,17 +403,16 @@ const LABELS=[
   {m:"San Francisco",a:"end",dx:-22,dy:-4},{m:"Seattle",a:"end",dx:-18,dy:-10},
   {m:"Urban Honolulu",a:"start",dx:16,dy:2},
 ];
-const F=d3 => d3; // noop
 function start(){
   if(!window.d3) return setTimeout(start,40);
   const fmt=d3.format(",");
 
   /* ---------- per-metro selection helpers ----------
-     Three lenses, at most one active at a time (econ and race are mutually
-     exclusive; PUMS has no race×income joint). lensVals(r,sel) -> {m,w} or null:
-       econ != "all"  -> PUMS economic cut (age-aware; null if metro has no M3)
-       race != "all"  -> published race cut (all-ages 15+; null if no estimate)
-       both "all"     -> published age-banded base
+     Lenses, at most one active at a time (econ and race are mutually exclusive;
+     PUMS has no race×income joint). lensVals(r,sel) -> {m,w} or null:
+       econ != "all"  -> PUMS economic/education cut (age-aware; null if no M3)
+       race != "all"  -> PUMS mutually-exclusive race, age-aware (null if no M3)
+       both "all"     -> published age-banded base for the selected year
   */
   const sumA=arr=>arr.reduce((a,b)=>a+b,0);
   const INC_GE={i50:["50-75k","75-100k","100k+"],i75:["75-100k","100k+"],i100:["100k+"]};
@@ -509,7 +508,6 @@ function start(){
     svg.append("text").attr("class","flip-anno").attr("x",m.l+4).attr("y",m.t+ih-2).attr("fill","var(--women)").attr("font-weight",600).text("▼ more single WOMEN");
     // crossover annotation near 40-44
     const cx=x("40-44")+x.bandwidth()/2;
-    svg.append("text").attr("class","flip-anno italic").attr("x",cx).attr("y",y(0)-2).attr("text-anchor","middle").attr("dy",-2).text("");
     svg.append("text").attr("class","flip-anno italic").attr("x",cx+x.bandwidth()).attr("y",m.t+ih/2).attr("text-anchor","middle").text("the crossover ≈ 40");
   })();
 
@@ -527,23 +525,21 @@ function start(){
   function men100(r,sel){const m=maleOf(r,sel), w=femOf(r,sel); return (w>0&&hasData(r))?100*m/w:null;}
   function lnRatio(r,sel){const v=men100(r,sel); return (v&&v>0)?Math.abs(Math.log(v/100)):0;}
 
+  // sizing scope is all-ages ("all") or a single band ("band") — see scaleKey().
   const scales={
-    abs:  {all:d3.scaleSqrt().domain([0,140000]).range([0,34]), band:d3.scaleSqrt().domain([0,72000]).range([0,32]), race:d3.scaleSqrt().domain([0,285000]).range([0,34])},
-    rate: {all:d3.scaleSqrt().domain([0,95]).range([0,30]),     band:d3.scaleSqrt().domain([0,150]).range([0,30]),    race:d3.scaleSqrt().domain([0,200]).range([0,30])},
-    ratio:{all:d3.scaleSqrt().domain([0,0.55]).range([0,23]),   band:d3.scaleSqrt().domain([0,0.65]).range([0,23]),   race:d3.scaleSqrt().domain([0,0.7]).range([0,23])},
+    abs:  {all:d3.scaleSqrt().domain([0,140000]).range([0,34]), band:d3.scaleSqrt().domain([0,72000]).range([0,32])},
+    rate: {all:d3.scaleSqrt().domain([0,95]).range([0,30]),     band:d3.scaleSqrt().domain([0,150]).range([0,30])},
+    ratio:{all:d3.scaleSqrt().domain([0,0.55]).range([0,23]),   band:d3.scaleSqrt().domain([0,0.65]).range([0,23])},
   };
   // legend entries per mode/scope. men & women sides may differ (ratio is reciprocal).
   const lnAbs=v=>Math.abs(Math.log(v/100));
   const legend={
     abs:  {all:{men:[2500,10000,20000,40000],women:[2500,10000,20000,40000]},
-           band:{men:[2500,10000,25000,50000],women:[2500,10000,25000,50000]},
-           race:{men:[10000,40000,100000,200000],women:[10000,40000,100000,200000]}, mag:v=>v, t:fmt},
+           band:{men:[2500,10000,25000,50000],women:[2500,10000,25000,50000]}, mag:v=>v, t:fmt},
     rate: {all:{men:[10,25,50,75],women:[10,25,50,75]},
-           band:{men:[25,50,100,150],women:[25,50,100,150]},
-           race:{men:[25,50,100,200],women:[25,50,100,200]}, mag:v=>v, t:v=>v+"/1k"},
+           band:{men:[25,50,100,150],women:[25,50,100,150]}, mag:v=>v, t:v=>v+"/1k"},
     ratio:{all:{men:[110,130,160],women:[91,77,63]},
-           band:{men:[115,140,180],women:[87,71,56]},
-           race:{men:[120,150,200],women:[83,67,50]}, mag:lnAbs, t:v=>v},
+           band:{men:[115,140,180],women:[87,71,56]}, mag:lnAbs, t:v=>v},
   };
 
   let mode="abs", sel=-1, race="all", econ="all"; // sel -1 = all ages
@@ -897,13 +893,13 @@ function start(){
   document.getElementById("raceSeg").addEventListener("click",e=>{
     const b=e.target.closest("button"); if(!b)return;
     seekerOff(); race=b.dataset.r;
-    if(race!=="all"){ econ="all"; resetYear(); }        // PUMS lens -> snap to 2024
+    if(race!=="all"){ econ="all"; resetYear(); }        // PUMS lens -> snap to current year
     setRaceUI(); setEconUI(); update(true);
   });
   document.getElementById("econSeg").addEventListener("click",e=>{
     const b=e.target.closest("button"); if(!b)return;
     seekerOff(); econ=b.dataset.e;
-    if(econ!=="all"){ race="all"; resetYear(); }        // PUMS lens -> snap to 2024
+    if(econ!=="all"){ race="all"; resetYear(); }        // PUMS lens -> snap to current year
     setRaceUI(); setEconUI(); update(true);
   });
 
