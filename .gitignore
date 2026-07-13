@@ -10,6 +10,8 @@ refs_published.json
 # Docs and local Claude Code config stay local
 docs/
 .claude/
+CLAUDE.md
+CLAUDE.local.md
 
 # Build scratch
 .build_check.js
