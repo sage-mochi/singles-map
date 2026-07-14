@@ -130,7 +130,17 @@ def main():
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text(out, encoding="utf-8")
     print(f"wrote {OUTPUT}  ({len(out)//1024} KB)")
-    print("Deploy: commit site/index.html — that is the only file Pages serves.")
+
+    # Radius boundary layer: too heavy to bake (~8 MB raw) — published beside the
+    # HTML and lazy-loaded by the map on first use of the Radius boundary type.
+    pr = optional("puma_radius.json")
+    if pr:
+        dst = ROOT / "site" / "puma_radius.json"
+        dst.write_text(minify_json(pr.read_text(encoding="utf-8")), encoding="utf-8")
+        print(f"published site/puma_radius.json  ({dst.stat().st_size//1024} KB, lazy radius layer)")
+    else:
+        print("warning: puma_radius.json absent — the Radius boundary will fail to load")
+    print("Deploy: commit site/*.html + site/puma_radius.json — Pages serves only site/.")
 
 if __name__ == "__main__":
     main()
