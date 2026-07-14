@@ -682,6 +682,28 @@ function start(){
     pumaSel=gMap.append("g").selectAll("circle").data(PUMAP).enter().append("circle")
       .attr("class","pdot").attr("cx",d=>d.x).attr("cy",d=>d.y).attr("r",0);
   }
+  /* pan/zoom, radius mode only: PUMAs are population-spaced, so metros overplot
+     into blobs at national scale (1px ≈ 3 mi) — zooming spreads them while dots
+     keep constant screen size (r and label font divide by k). */
+  let zoomK=1;
+  const zoomB=d3.zoom().scaleExtent([1,12])
+    .extent([[0,0],[W,H]]).translateExtent([[0,0],[W,H]])          // explicit: pan stays on the map
+    .filter(e=> bnd==="radius" && (e.type!=="wheel"||e.ctrlKey))   // plain wheel keeps scrolling the page
+    .on("zoom",e=>{
+      zoomK=e.transform.k;
+      gMap.attr("transform",e.transform); gL.attr("transform",e.transform);
+      gMap.selectAll("path.state").attr("stroke-width",1/zoomK);
+      if(pumaSel&&bnd==="radius") pumaSel.attr("r",3.2/zoomK);
+      gL.selectAll("text").style("font-size",(10.5/zoomK)+"px").style("stroke-width",(2.6/zoomK)+"px");  // inline style beats the .lbl class rule
+    });
+  function setZoom(on){
+    if(on){ svg.call(zoomB).style("cursor","grab").style("overflow","hidden"); }  // clip panned/zoomed content to the card
+    else{ svg.call(zoomB.transform, d3.zoomIdentity);   // reset stored transform + fire handler
+          svg.on(".zoom",null).style("cursor",null).style("overflow",null);
+          zoomK=1; gMap.attr("transform",null); gL.attr("transform",null);
+          gMap.selectAll("path.state").attr("stroke-width",null);
+          gL.selectAll("text").style("font-size",null).style("stroke-width",null); }
+  }
 
   // men per 100 women, and its log (symmetric sizing magnitude)
   function men100(r,sel){const m=maleOf(r,sel), w=femOf(r,sel); return (w>0&&hasData(r))?100*m/w:null;}
@@ -1006,7 +1028,7 @@ function start(){
         const dx=r.x-mx, dy=r.y-my, dd=dx*dx+dy*dy;
         if(dd<bd){ bd=dd; best=r; }
       }
-      return (best && bd <= 81) ? best : null;    // 9px grab radius for the dot field
+      return (best && bd <= 81/(zoomK*zoomK)) ? best : null;  // 9 screen-px grab radius
     }
     for(const r of pts){ if(!shown(r)) continue;
       const dx=r.x-mx, dy=r.y-my, dd=dx*dx+dy*dy;
@@ -1014,13 +1036,24 @@ function start(){
     }
     return (best && bd <= catchR(best)**2) ? best : null;
   }
-  svg.on("pointermove",e=>{ const p=d3.pointer(e,svg.node()); setActive(nearestMetro(p[0],p[1]),e); })
+  svg.on("pointermove",e=>{ const p=d3.pointer(e,gMap.node()); setActive(nearestMetro(p[0],p[1]),e); })  // gMap space: zoom-transform aware
      .on("pointerleave",()=>setActive(null));
 
   const gL=svg.append("g");
   function drawLabels(){
     gL.selectAll("*").remove();
-    if(bnd==="radius") return;                    // the dot field carries no metro labels
+    if(bnd==="radius"){                           // text-only city labels for orientation
+      const seen=new Set();
+      for(const L of LABELS){
+        const r=pts.find(p=>!p.city&&!p.core&&(p.full.startsWith(L.m)||p.n===L.m||p.full.indexOf(L.m)>-1));
+        if(!r||seen.has(r)) continue; seen.add(r);
+        gL.append("text").attr("class","lbl").attr("x",r.x+L.dx*.4).attr("y",r.y+L.dy*.4)
+          .attr("text-anchor",L.a).attr("opacity",.55)
+          .style("font-size",(10.5/zoomK)+"px").style("stroke-width",(2.6/zoomK)+"px")
+          .style("pointer-events","none").text(r.n);
+      }
+      return;
+    }
     const S = seeker.on ? seekScale : curScale(); const seen=new Set();   // one label per metro
     for(const L of LABELS){
       const r=pts.find(p=>shown(p)&&(p.full.startsWith(L.m)||p.n===L.m||p.full.indexOf(L.m)>-1)); if(!r||seen.has(r))continue;
@@ -1137,7 +1170,7 @@ function start(){
     if(!pumaSel) return;
     if(bnd!=="radius"){ pumaSel.attr("r",0); return; }
     const nr=natRef();
-    pumaSel.attr("r",3.2)
+    pumaSel.attr("r",3.2/zoomK)
       .attr("fill",d=>{
         if(seeker.on){ const s=d._sr2; return !s ? "#bbb" : (s.ratio<nr?SEEK_FAV:SEEK_TOUGH); }
         const v=pumaVals(d); if(!v||!(v.m+v.w)) return "#bbb";
@@ -1234,7 +1267,7 @@ function start(){
      Cores and the radius field are current-year PUMS only -> year snaps to latest. */
   const BND_HINTS={
     market:`CBSA metro lines mislead exactly where the giants are: New York's boundary <b>dilutes</b> its dating core with far suburbs, while the Bay Area's <b>splits one app-radius market in two</b> (San Francisco and San Jose are separate CBSAs). This view swaps them for county-group <b>functional markets</b> — the five boroughs; the SF–Peninsula–South Bay corridor; the East Bay; LA and Orange counties — built from PUMS microdata with the same margin-of-error discipline (race/education cells here are 1-year, so wider margins than the metro race views). Every other metro keeps its CBSA boundary: single-core commute sheds, where the metro ≈ the market. Giant-metro suburbs outside a core aren't shown. Current-year data only.`,
-    radius:`Dating apps match by <b>radius</b>, so this view drops administrative boundaries entirely: every dot is a PUMA (~100k people), and its numbers are the market within the chosen radius of it — a continuous field where neighbouring dots overlap and share pool. Drag the radius and watch the Bay Area flip as San Jose enters San Francisco's market. In the matchmaking view, <b>competition is measured where your matches live</b>: your rivals aren't the same-sex singles within <i>your</i> radius but the ones within your <i>matches'</i> radii — a rival up to twice the radius away still competes for the people between you — so each dot's ratio is the match-weighted average of the rival pressure its reachable partners actually see. Estimates are exact sums; margins combine by root-sum-square across PUMAs, so the ±s here are approximate — and because neighbours overlap, dots can't be ranked as a list (no tables) and the tie test is off. The <b>race filter is unavailable</b> at this boundary: PUMA-level race×single-year cells are noise-dominated, so they aren't shipped. Education works. Current-year data only.`};
+    radius:`Dating apps match by <b>radius</b>, so this view drops administrative boundaries entirely: every dot is a PUMA (~100k people), and its numbers are the market within the chosen radius of it — a continuous field where neighbouring dots overlap and share pool. Drag the radius and watch the Bay Area flip as San Jose enters San Francisco's market. In the matchmaking view, <b>competition is measured where your matches live</b>: your rivals aren't the same-sex singles within <i>your</i> radius but the ones within your <i>matches'</i> radii — a rival up to twice the radius away still competes for the people between you — so each dot's ratio is the match-weighted average of the rival pressure its reachable partners actually see. Estimates are exact sums; margins combine by root-sum-square across PUMAs, so the ±s here are approximate — and because neighbours overlap, dots can't be ranked as a list (no tables) and the tie test is off. The <b>race filter is unavailable</b> at this boundary: PUMA-level race×single-year cells are noise-dominated, so they aren't shipped. Education works. Current-year data only. PUMAs are population-spaced, so metros crowd at national scale — <b>drag to pan, double-click or ctrl+scroll to zoom</b> (dots keep their size; city labels are for orientation).`};
   function setBndUI(){
     [...document.querySelectorAll("#bndSeg button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.b===bnd));
     const h=document.getElementById("bndhint");
@@ -1242,6 +1275,7 @@ function start(){
     h.classList.toggle("show",bnd!=="cbsa");
     document.getElementById("radiusCtl").style.display = bnd==="radius" ? "" : "none";
     document.getElementById("rLab").textContent=rMi;
+    setZoom(bnd==="radius");
   }
   document.getElementById("bndSeg").addEventListener("click",e=>{
     const b=e.target.closest("button"); if(!b)return;
