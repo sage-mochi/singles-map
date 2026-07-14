@@ -63,11 +63,11 @@ def main():
         if code in m3: covered += 1
         else:          no_m3.append(m['full'])
 
-    # NY (35620) and LA (31080) appear on the map only as city-place insets
-    # (code:null), so they have no PUMS view. Add metro-level circles that the map
-    # renders ONLY under the PUMS lenses (pumsOnly flag); the base/age view keeps
+    # NY (35620), LA (31080) and SF (41860) appear on the map only as city-place
+    # insets (code:null), so they have no PUMS view. Add metro-level circles that the
+    # map renders ONLY under the PUMS lenses (pumsOnly flag); the base/age view keeps
     # the insets. m/w are the M3 base counts (so hover / any base render work).
-    PUMS_ONLY = {'35620': 'New York', '31080': 'Los Angeles'}
+    PUMS_ONLY = {'35620': 'New York', '31080': 'Los Angeles', '41860': 'San Francisco'}
     for code, short in PUMS_ONLY.items():
         g, base = gaz[code], m3full['metros'][code]['base']
         d['metros'].append({'n': short, 'full': g['name'], 'code': code,

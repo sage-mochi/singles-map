@@ -8,9 +8,10 @@ committed file exactly.
 Selection rule (self-maintaining — new metros appear automatically): every
 METROPOLITAN (not micro) non-PR MSA that has non-null 1-year B12002 this vintage.
 Empirically the metros without 1-year detailed data return null and drop out; NY
-(35620) and LA (31080) are pulled out and REPLACED by 4 Census-place insets
-(New York / Los Angeles / Long Beach / Anaheim cities), which don't map to PUMAs.
-attach_cbsa.py then re-adds `code` + the NY/LA pumsOnly circles.
+(35620), LA (31080) and SF (41860) are pulled out and REPLACED by 6 Census-place
+insets (New York / Los Angeles / Long Beach / Anaheim / San Francisco / Oakland
+cities), which don't map to PUMAs. attach_cbsa.py then re-adds `code` + the
+NY/LA/SF pumsOnly circles.
 
 Per metro: n, full, lon/lat (CBSA Gazetteer; place Gazetteer for insets), m[9]/w[9]
 single by 5-yr band 20-64, and race{White/Black/Asian/Hispanic/Two+} = all-ages-15+
@@ -30,7 +31,10 @@ ROOT  = Path(__file__).resolve().parent.parent
 DATA  = ROOT / 'data'
 CACHE = ROOT / 'pipeline' / 'pums_cache'
 KEY   = os.environ.get('CENSUS_API_KEY')
-if not KEY: raise SystemExit('Set CENSUS_API_KEY (free: https://api.census.gov/data/key_signup.html)')
+if not KEY:
+    print('warning: CENSUS_API_KEY not set — running keyless (Census allows ~500 anonymous '
+          'queries/day per IP; this build makes ~50). Get a free key: '
+          'https://api.census.gov/data/key_signup.html')
 MSA_GEO = 'metropolitan statistical area/micropolitan statistical area'
 
 M_OFF = [6, 38, 68, 83]        # B12002 single male: NM, SEP, WID, DIV; band i -> off+i
@@ -39,15 +43,18 @@ RACE_TBL = {'White':'B12002H','Black':'B12002B','Asian':'B12002D',
             'Hispanic':'B12002I','Two or more':'B12002G'}
 RACE_M = [3,5,6,7]; RACE_W = [9,11,12,13]     # race-iteration all-ages single vars
 PLACE_FULL = {'New York':'New York city, NY','Los Angeles':'Los Angeles city, CA',
-              'Long Beach':'Long Beach city, CA','Anaheim':'Anaheim city, CA'}
+              'Long Beach':'Long Beach city, CA','Anaheim':'Anaheim city, CA',
+              'San Francisco':'San Francisco city, CA','Oakland':'Oakland city, CA'}
 PLACES = {('36','51000'):'New York', ('06','44000'):'Los Angeles',
-          ('06','43000'):'Long Beach', ('06','02000'):'Anaheim'}
+          ('06','43000'):'Long Beach', ('06','02000'):'Anaheim',
+          ('06','67000'):'San Francisco', ('06','53000'):'Oakland'}
 NULLS = (None, '', '-666666666', '-555555555', '-999999999')
 
 def get(params, tries=5):
     for k in range(tries):
         try:
-            r = requests.get(config.ACS1_API, params={**params, 'key': KEY}, timeout=180)
+            r = requests.get(config.ACS1_API,
+                             params={**params, 'key': KEY} if KEY else params, timeout=180)
             if r.status_code == 200: return r.json()
         except Exception: pass
         time.sleep(2*(k+1))
@@ -119,7 +126,7 @@ def main():
 
     metros = []
     for code in sorted(sel):
-        if code in ('35620', '31080'): continue      # NY/LA -> replaced by insets
+        if code in ('35620', '31080', '41860'): continue  # NY/LA/SF -> replaced by insets
         g = gaz[code]; m, w = single_bands(msa[code])
         metros.append({'n': g['name'].split(',')[0].split('-')[0].strip(), 'full': g['name'],
                        'lon': g['lon'], 'lat': g['lat'], 'm': m, 'w': w,
@@ -134,7 +141,7 @@ def main():
         metros.append({'n': name, 'full': PLACE_FULL[name], 'lon': lon, 'lat': lat,
                        'm': m, 'w': w, 'race': race_of(rr, pl), 'city': True})
 
-    # natM/natW: single by band summed across the 229 SELECTED metros — NY/LA counted as
+    # natM/natW: single by band summed across the SELECTED metros — NY/LA/SF counted as
     # their full MSAs here (the flip chart's "summed across all metros"), not the insets.
     natM = [sum(single_bands(msa[c])[0][i] for c in sel) for i in range(9)]
     natW = [sum(single_bands(msa[c])[1][i] for c in sel) for i in range(9)]
