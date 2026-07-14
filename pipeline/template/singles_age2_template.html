@@ -631,6 +631,46 @@ function start(){
     for(let i=0;i<PUMAP.length;i++) PUMAP[i]._nd=radiusNode(i);
     pumaDirty=false;
   }
+  /* v2 rival treatment (radius seeker): your rivals are the men within your
+     MATCHES' radii, not yours — a man 2R away competes for the women between
+     you. So a dot's displayed ratio is the match-weighted mean, over the PUMAs
+     in its radius, of the v1 ratio AT those PUMAs (the competition each match
+     actually experiences). Weights = each PUMA's own reciprocity-discounted
+     opposite-sex singles. MOEs are the same weighted mean — approximate, since
+     overlapping markets are strongly correlated (said in the hint). */
+  function mEffLocalOf(p){                   // reciprocal matches in ONE puma
+    const O=seeker.sex==="m"?"w":"m";
+    let mEff=0;
+    if(eduOn()){
+      const src=p.edu[seeker.seekEdu][O], wA=eduAffN();
+      for(let a=seeker.lo;a<=seeker.hi;a++){
+        const ko=CG[O][a], w=ko?(ko[seeker.age-a]||0)/cgPeak[O][a]:0;
+        const c=src[a]; if(c) mEff+=c[0]*wA*w;
+      }
+    } else {
+      const arr=p.base[O];
+      for(let a=Math.max(20,seeker.lo);a<=Math.min(64,seeker.hi);a++){
+        const ko=CG[O][a], w=ko?(ko[seeker.age-a]||0)/cgPeak[O][a]:0;
+        mEff+=arr[a-20]*w;
+      }
+    }
+    return mEff;
+  }
+  function refreshPumaSeeker(){              // _sr (v1, counts) + _sr2 (displayed ratio)
+    for(const p of PUMAP){ p._sr=seekerData(p); p._wl=mEffLocalOf(p); }
+    for(let i=0;i<PUMAP.length;i++){
+      const r=PUMAP[i]; r._sr2=null;
+      if(!r._sr||r._sr.noRecip) continue;
+      let sw=0, sr=0, sm=0;
+      for(const [j,d] of nbrL[i]){
+        if(d>rMi) break;
+        const q=PUMAP[j];
+        if(!q._sr||q._sr.noRecip||!(q._wl>0)) continue;
+        sw+=q._wl; sr+=q._wl*q._sr.ratio; sm+=q._wl*q._sr.moe;
+      }
+      if(sw>0) r._sr2={ratio:sr/sw, moe:sm/sw};
+    }
+  }
   function pumaVals(r){                      // {m,w,mMoe,wMoe} for the age-slider band (or all)
     const nd=r._nd; if(!nd) return null;
     const lo=sel<0?0:sel*5, hi=sel<0?44:sel*5+4;
@@ -879,8 +919,10 @@ function start(){
         return `<div class="hd">${r.full}</div>
           <div class="tg"><span class="k">Single ${tgt}${oppW}, ${seeker.lo}–${seeker.hi}</span><b>${fmt(Math.round(sr.matches))}</b></div>
           <div class="verdict" style="color:#f0b39c">Effectively none pair with a${me} ${seeker.sex==="m"?"man":"woman"} aged ${seeker.age} — no meaningful market for this search</div>${cnote}`;
-      const nr=natRef(), fav=sr.ratio<nr, within=Math.abs(sr.ratio-nr)<sr.moe;
-      const pct=Math.abs(Math.round(100*(sr.ratio/nr-1)));
+      // radius dots display the v2 ratio: competition measured where the matches live
+      const disp=(r.puma&&r._sr2)?r._sr2:sr;
+      const nr=natRef(), fav=disp.ratio<nr, within=Math.abs(disp.ratio-nr)<disp.moe;
+      const pct=Math.abs(Math.round(100*(disp.ratio/nr-1)));
       const verdict = within ? `<div class="verdict" style="color:#cdd6d4">About the national market for you — within margin of error</div>`
                     : fav   ? `<div class="verdict" style="color:#8fe6c4">Favorable — ${pct}% fewer rivals per match than the national market for you</div>`
                             : `<div class="verdict" style="color:#f0b39c">Tough — ${pct}% more rivals per match than the national market for you</div>`;
@@ -895,7 +937,7 @@ function start(){
         <div class="tg"><span class="k">Single ${tgt}${oppW}, ${seeker.lo}–${seeker.hi}</span><b>${fmt(Math.round(sr.matches))}</b></div>
         <div class="tg"><span class="k">${recipLab}</span><b>${fmt(Math.round(sr.mEff))} <span class="moe">(${Math.round(100*sr.accept)}%)</span></b></div>
         <div class="tg"><span class="k">Competing ${rivW} (${raceOn()?"all races, ":eduOn()?"all education levels, ":""}kernel-weighted)</span><b>${fmt(Math.round(sr.rivals))}</b></div>
-        <div class="tg"><span class="k">Rivals per 100 reciprocal matches</span><b>${Math.round(sr.ratio)} <span class="moe">±${Math.round(sr.moe)} · US ${Math.round(nr)}</span></b></div>
+        <div class="tg"><span class="k">Rivals per 100 reciprocal matches${r.puma?" (where your matches live)":""}</span><b>${Math.round(disp.ratio)} <span class="moe">±${Math.round(disp.moe)} · US ${Math.round(nr)}</span></b></div>
         <div class="tg"><span class="k" style="font-size:10.5px">${seeker.sex==="m"?"Man":"Woman"} ${seeker.age}${me?" ·"+me:""}, open to ${tgt}${seeker.lo}–${seeker.hi}</span></div>${verdict}${tieN}${cnote}`;
     }
     if(r.puma){                                  // base views of the radius field
@@ -1047,9 +1089,9 @@ function start(){
       const nr=natRef();
       for(const r of PUMAP){
         if(seeker.on){
-          if(!r._sr||r._sr.noRecip) continue;
-          if(Math.abs(r._sr.ratio-nr)<r._sr.moe){ close++; continue; }
-          if(r._sr.ratio<nr) a++; else b++;
+          const s=r._sr2; if(!s) continue;
+          if(Math.abs(s.ratio-nr)<s.moe){ close++; continue; }
+          if(s.ratio<nr) a++; else b++;
         } else {
           const v=pumaVals(r); if(!v||!(v.m+v.w)) continue;
           if(Math.abs(v.m-v.w)<Math.hypot(v.mMoe,v.wMoe)){ close++; continue; }
@@ -1097,15 +1139,16 @@ function start(){
     const nr=natRef();
     pumaSel.attr("r",3.2)
       .attr("fill",d=>{
-        if(seeker.on) return (!d._sr||d._sr.noRecip) ? "#bbb" : (d._sr.ratio<nr?SEEK_FAV:SEEK_TOUGH);
+        if(seeker.on){ const s=d._sr2; return !s ? "#bbb" : (s.ratio<nr?SEEK_FAV:SEEK_TOUGH); }
         const v=pumaVals(d); if(!v||!(v.m+v.w)) return "#bbb";
         return v.m>v.w?"var(--men)":"var(--women)";
       })
       .attr("fill-opacity",d=>{
         if(seeker.on){
-          if(!d._sr||d._sr.noRecip) return .12;
-          if(Math.abs(d._sr.ratio-nr)<d._sr.moe) return .14;          // ≈ national: faded
-          return Math.min(.85,.25+1.4*Math.abs(Math.log(d._sr.ratio/nr)));
+          const s=d._sr2;
+          if(!s) return .12;
+          if(Math.abs(s.ratio-nr)<s.moe) return .14;                  // ≈ national: faded
+          return Math.min(.85,.25+1.4*Math.abs(Math.log(s.ratio/nr)));
         }
         const v=pumaVals(d); if(!v||!(v.m+v.w)) return .12;
         if(Math.abs(v.m-v.w)<Math.hypot(v.mMoe,v.wMoe)) return .14;   // within MOE: faded
@@ -1118,7 +1161,7 @@ function start(){
       if(!PUMAS) ensurePumas();
       else{
         if(pumaDirty) refreshPumaNodes();
-        if(seeker.on) for(const r of PUMAP) r._sr = seekerData(r);
+        if(seeker.on) refreshPumaSeeker();
       }
     }
     stylePumas();
@@ -1191,7 +1234,7 @@ function start(){
      Cores and the radius field are current-year PUMS only -> year snaps to latest. */
   const BND_HINTS={
     market:`CBSA metro lines mislead exactly where the giants are: New York's boundary <b>dilutes</b> its dating core with far suburbs, while the Bay Area's <b>splits one app-radius market in two</b> (San Francisco and San Jose are separate CBSAs). This view swaps them for county-group <b>functional markets</b> — the five boroughs; the SF–Peninsula–South Bay corridor; the East Bay; LA and Orange counties — built from PUMS microdata with the same margin-of-error discipline (race/education cells here are 1-year, so wider margins than the metro race views). Every other metro keeps its CBSA boundary: single-core commute sheds, where the metro ≈ the market. Giant-metro suburbs outside a core aren't shown. Current-year data only.`,
-    radius:`Dating apps match by <b>radius</b>, so this view drops administrative boundaries entirely: every dot is a PUMA (~100k people), and its numbers are the market within the chosen radius of it — a continuous field where neighbouring dots overlap and share pool. Drag the radius and watch the Bay Area flip as San Jose enters San Francisco's market. Estimates are exact sums; margins combine by root-sum-square across PUMAs, so the seeker's ±s here are approximate — and because neighbours overlap, dots can't be ranked as a list (no tables) and the tie test is off. The <b>race filter is unavailable</b> at this boundary: PUMA-level race×single-year cells are noise-dominated, so they aren't shipped. Education works. Current-year data only.`};
+    radius:`Dating apps match by <b>radius</b>, so this view drops administrative boundaries entirely: every dot is a PUMA (~100k people), and its numbers are the market within the chosen radius of it — a continuous field where neighbouring dots overlap and share pool. Drag the radius and watch the Bay Area flip as San Jose enters San Francisco's market. In the matchmaking view, <b>competition is measured where your matches live</b>: your rivals aren't the same-sex singles within <i>your</i> radius but the ones within your <i>matches'</i> radii — a rival up to twice the radius away still competes for the people between you — so each dot's ratio is the match-weighted average of the rival pressure its reachable partners actually see. Estimates are exact sums; margins combine by root-sum-square across PUMAs, so the ±s here are approximate — and because neighbours overlap, dots can't be ranked as a list (no tables) and the tie test is off. The <b>race filter is unavailable</b> at this boundary: PUMA-level race×single-year cells are noise-dominated, so they aren't shipped. Education works. Current-year data only.`};
   function setBndUI(){
     [...document.querySelectorAll("#bndSeg button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.b===bnd));
     const h=document.getElementById("bndhint");
