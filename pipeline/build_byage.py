@@ -149,7 +149,7 @@ def main():
            'metros': metros, 'natM': natM, 'natW': natW,
            'races': ['White','Black','Asian','Hispanic','Two or more']}
     json.dump(out, open(DATA / 'byage_min.json', 'w'))
-    print(f'wrote byage_min.json ({len(metros)} metros incl 4 insets)')
+    print(f'wrote byage_min.json ({len(metros)} metros incl {len(PLACES)} insets)')
     validate(out)
 
 def validate(new):

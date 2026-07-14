@@ -86,6 +86,7 @@
   .metro.uncertain{stroke:#b9c2bf;stroke-width:.8;stroke-dasharray:2 2}
   .metro.active{stroke:var(--ink);stroke-width:1.5;stroke-dasharray:none;fill-opacity:.9}
   .metro.tied{stroke:var(--ink);stroke-width:1.1;stroke-dasharray:1.2 2.4}
+  .metro.corec{stroke:var(--ink);stroke-width:1}
   .tienote{font-size:11px;color:var(--ink-soft);margin-top:5px;padding-top:5px;border-top:1px solid var(--hair)}
   .lbl{font-family:"Public Sans";font-size:10.5px;fill:var(--ink);font-weight:500;paint-order:stroke;stroke:var(--panel);stroke-width:2.6px;stroke-linejoin:round}
   .leader{stroke:var(--ink-soft);stroke-width:.6;fill:none;opacity:.5}
@@ -211,7 +212,7 @@
   </div>
 
   <h2 class="sec">§2 · The same flip, on the map — and your own market</h2>
-  <p class="sub"><b>Claim: where you live nudges the number; who you are and what you seek set it.</b> Drag the age slider or press play and watch the map turn from blue to red — geography barely changes the story, age does. Scrub the <b>year slider</b> back to 2006 to watch two decades of the same picture: the pattern holds in every ACS vintage, even as individual metros drift. Then switch on the <b>matchmaking view</b> to measure <i>your</i> market: rivals per reciprocal match for your age, sex, race, education and search range. Six points are <b>cities, not metros</b> (dashed outline): Los Angeles, Long Beach and Anaheim are split out of their shared metro, San Francisco and Oakland out of theirs, and New York City stands alone — hover any of them for the geography caveat.</p>
+  <p class="sub"><b>Claim: where you live nudges the number; who you are and what you seek set it.</b> Drag the age slider or press play and watch the map turn from blue to red — geography barely changes the story, age does. Scrub the <b>year slider</b> back to 2006 to watch two decades of the same picture: the pattern holds in every ACS vintage, even as individual metros drift. Then switch on the <b>matchmaking view</b> to measure <i>your</i> market: rivals per reciprocal match for your age, sex, race, education and search range. Six points are <b>cities, not metros</b> (dashed outline): Los Angeles, Long Beach and Anaheim are split out of their shared metro, San Francisco and Oakland out of theirs, and New York City stands alone — hover any of them for the geography caveat. And because administrative metro lines mislead exactly where the giants are — dating apps match by <i>radius</i>, not by CBSA — the <b>Boundaries</b> toggle swaps them for functional dating markets: the five boroughs, the SF–Peninsula–South Bay corridor (one app market that the CBSA split in two), the East Bay, LA and Orange counties.</p>
 
   <div class="toolbar" style="margin-bottom:2px">
     <span class="lab">Race / origin</span>
@@ -239,6 +240,15 @@
     </div>
   </div>
   <p class="racehint" id="econhint">Modeled from Census <b>PUMS microdata</b> (__ACSYEAR__ 1-year), not the published tables: single adults 20–64 by personal income (total income in __ACSYEAR__ dollars), employment, or education (bachelor's degree or higher vs not). All of these <b>respect the age slider</b>. The education split is the <i>Date-onomics</i> finding made scrubbable: among singles 25–34 the ratio <b>flips between the two pools</b> — roughly 90 college men per 100 college women, but ~133 per 100 in the non-degree pool — so the "surplus of single men" and the "shortage of educated men" are both true, in different markets. These filters and race can't be combined (separate microdata cross-tabs), so choosing one resets the other. New York and Los Angeles appear here as whole metros (their city insets step aside); only the five Connecticut metros, which lack a clean PUMS-to-metro mapping, have no PUMS estimate.</p>
+
+  <div class="toolbar" style="margin-bottom:2px">
+    <span class="lab">Boundaries</span>
+    <div class="seg" id="bndSeg" role="group" aria-label="Boundary type">
+      <button data-b="cbsa" aria-pressed="true">Metros (CBSA)</button>
+      <button data-b="market" aria-pressed="false">Dating markets</button>
+    </div>
+  </div>
+  <p class="racehint" id="bndhint">CBSA metro lines mislead exactly where the giants are: New York's boundary <b>dilutes</b> its dating core with far suburbs, while the Bay Area's <b>splits one app-radius market in two</b> (San Francisco and San Jose are separate CBSAs). This view swaps them for county-group <b>functional markets</b> — the five boroughs; the SF–Peninsula–South Bay corridor; the East Bay; LA and Orange counties — built from PUMS microdata with the same margin-of-error discipline (race/education cells here are 1-year, so wider margins than the metro race views). Every other metro keeps its CBSA boundary: single-core commute sheds, where the metro ≈ the market. Giant-metro suburbs outside a core aren't shown. Current-year data only.</p>
 
   <div class="toolbar" style="margin-bottom:2px">
     <span class="lab">Matchmaking view</span>
@@ -408,6 +418,7 @@ const M3 = __M3__;                           // PUMS cross-tabs keyed by CBSA co
 const AGE = __AGE__;                          // single-year-of-age single counts + MOE
 const KERNEL = __KERNEL__;                    // empirical partner-age-gap kernel
 const YRS = __YEARS__;                        // 2006-2023 B12002 history (time slider)
+const CORES = __CORES__;                      // functional dating-market cores (boundary toggle)
 const BANDS = D.bands;                       // 9 five-year bands
 const AGE_LABELS = ["All ages",...BANDS];
 const SUBS = ["20–64",...BANDS.map(b=>b+" yrs")];
@@ -439,7 +450,7 @@ function start(){
   const sumA=arr=>arr.reduce((a,b)=>a+b,0);
   const INC_GE={i50:["50-75k","75-100k","100k+"],i75:["75-100k","100k+"],i100:["100k+"]};
   const RACE_KEY={White:"white",Black:"black",Asian:"asian",Hispanic:"hisp","Two or more":"two"};
-  function m3Of(r){ return r.code ? M3.metros[r.code] : null; }
+  function m3Of(r){ return r.core ? CORES.cores[r.core].m3 : (r.code ? M3.metros[r.code] : null); }
   const pickA=(node,sel)=> sel<0 ? sumA(node) : node[sel];   // band sel or all-ages sum
   function econVals(r,sel){
     const x=m3Of(r); if(!x) return null;
@@ -542,6 +553,12 @@ function start(){
 
   const pts=[];
   for(const r of D.metros){const xy=proj([r.lon,r.lat]); if(!xy)continue; r.x=xy[0]; r.y=xy[1]; pts.push(r);}
+  // functional dating-market cores (Boundaries toggle) — same row shape as metros,
+  // flagged core:<key>; their m3/age nodes live in CORES and are routed by m3Of/seekerData
+  for(const [k,c] of Object.entries(CORES.cores)){
+    const r={n:c.n, full:c.full, lon:c.lon, lat:c.lat, m:c.m, w:c.w, core:k, code:k};
+    const xy=proj([r.lon,r.lat]); if(!xy)continue; r.x=xy[0]; r.y=xy[1]; pts.push(r);
+  }
 
   // men per 100 women, and its log (symmetric sizing magnitude)
   function men100(r,sel){const m=maleOf(r,sel), w=femOf(r,sel); return (w>0&&hasData(r))?100*m/w:null;}
@@ -565,6 +582,7 @@ function start(){
   };
 
   let mode="abs", sel=-1, race="all", econ="all"; // sel -1 = all ages
+  let bnd="cbsa";                                 // boundary type: CBSA metros | dating-market cores
   let tblDir="women", tblRace="all";              // ranking-table state (shared with deep links)
   const seeker={on:false, sex:"m", age:30, lo:28, hi:31,
                 myRace:"none", seek:new Set(["any"]),
@@ -583,11 +601,14 @@ function start(){
     return (node && node.m[yi]) ? {m:node.m[yi], w:node.w[yi]} : null;
   }
   const scaleKey=()=>sel<0?"all":"band"; // all lenses are age-resolved now (econ + PUMS race)
-  const pumsLens=()=>econ!=="all"||race!=="all"||seeker.on;
-  // NY/LA metro circles (pumsOnly) show only under a PUMS lens; their city-place
-  // insets show only otherwise. Everything else: visible whenever it has data.
+  const pumsLens=()=>econ!=="all"||race!=="all"||seeker.on||bnd==="market";  // market cores are current-year only
+  // NY/LA/SF metro circles (pumsOnly) show only under a PUMS lens; their city-place
+  // insets show only otherwise. Market boundaries: cores replace the giants' insets
+  // and pumsOnly circles; every other metro is unchanged.
   function shown(r){
-    if(seeker.on) return !!(r.code && AGE.metros[r.code]);   // 222 + NY/LA; insets + CT hidden
+    if(r.core) return bnd==="market" && (seeker.on || hasData(r));
+    if(bnd==="market" && (r.city || r.pumsOnly)) return false;   // replaced by cores
+    if(seeker.on) return !!(r.code && AGE.metros[r.code]);       // insets + CT hidden
     return hasData(r) && (r.pumsOnly ? pumsLens() : true);
   }
 
@@ -696,7 +717,8 @@ function start(){
             moe: ratio*Math.sqrt((mMoe/mEff)**2+(rMoe/rivals)**2)};
   }
   function seekerData(r){
-    const x=r.code?AGE.metros[r.code]:null; if(!x) return null;
+    const x = r.core ? CORES.cores[r.core].age : (r.code ? AGE.metros[r.code] : null);
+    if(!x) return null;
     return seekCalc(x);
   }
   /* Metros statistically TIED with r for the current search: |Δratio| within the
@@ -749,9 +771,10 @@ function start(){
   const ECONLAB={emp:"Employed",i50:"$50k+ income",i75:"$75k+ income",i100:"$100k+ income",
                  ba:"Bachelor's+",noba:"No bachelor's"};
   function tipHTML(r){
-    const cnote = r.city ? `<div class="citynote">City proper (Census place) — covers the city limits only, not the surrounding metro region, so its circle isn't directly comparable to the metro-area circles around it.</div>` : "";
+    const cnote = r.city ? `<div class="citynote">City proper (Census place) — covers the city limits only, not the surrounding metro region, so its circle isn't directly comparable to the metro-area circles around it.</div>`
+                : r.core ? `<div class="citynote">Functional dating-market core (county group), not a CBSA — see the Boundaries toggle. 1-year PUMS estimates, current year only.</div>` : "";
     if(seeker.on){
-      const sr = r._sr || ((r.code&&AGE.metros[r.code])?seekerData(r):null);
+      const sr = r._sr || seekerData(r);
       if(!sr) return `<div class="hd">${r.full}</div><div class="tg"><span class="k">your market</span><b>no PUMS estimate</b></div>${cnote}`;
       const oppW=seeker.sex==="m"?"women":"men", rivW=seeker.sex==="m"?"men":"women";
       const tgt = raceOn() ? [...seeker.seek].map(q=>RSHORT[q]).join("+")+" "
@@ -806,7 +829,7 @@ function start(){
     tip.style.left=x+"px";tip.style.top=y+"px";}
 
   const circles=gMap.append("g").selectAll("circle").data(pts).enter().append("circle")
-    .attr("class",d=>d.city?"metro city":"metro").attr("cx",d=>d.x).attr("cy",d=>d.y).attr("fill-opacity",.72);
+    .attr("class",d=>d.city?"metro city":d.core?"metro corec":"metro").attr("cx",d=>d.x).attr("cy",d=>d.y).attr("fill-opacity",.72);
 
   /* Proximity hover: pick the visible metro whose center is nearest the cursor,
      so any metro is reachable even when a bigger neighbour overlaps it (acute in
@@ -915,7 +938,7 @@ function start(){
   document.getElementById("ageTicks").innerHTML=AGE_LABELS.map((l,i)=>`<span>${i===0?"All":BANDS[i-1].split("-")[0]}</span>`).join("");
 
   function update(animate){
-    if(seeker.on){ seekNational(); for(const r of pts) r._sr = (r.code&&AGE.metros[r.code])?seekerData(r):null; }
+    if(seeker.on){ seekNational(); for(const r of pts) r._sr = seekerData(r); }
     const S = seeker.on ? seekScale : curScale();
     const valf = seeker.on ? seekVal : value;
     const colf = seeker.on ? seekCol : COL;
@@ -980,6 +1003,23 @@ function start(){
     setRaceUI(); setEconUI(); update(true);
   });
 
+  /* ---- boundary toggle: CBSA metros vs functional dating-market cores ----
+     Orthogonal to the lenses: it changes WHICH geographies exist, not the metric.
+     Cores are current-year PUMS only, so engaging it snaps the year to latest. */
+  function setBndUI(){
+    [...document.querySelectorAll("#bndSeg button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.b===bnd));
+    document.getElementById("bndhint").classList.toggle("show",bnd==="market");
+  }
+  document.getElementById("bndSeg").addEventListener("click",e=>{
+    const b=e.target.closest("button"); if(!b)return;
+    bnd=b.dataset.b;
+    if(bnd==="market") resetYear();
+    setBndUI();
+    if(seeker.on) seekerLabels();                       // coverage sentence tracks the boundary
+    else renderTables(tblDir,tblRace);                  // tables respect the boundary too
+    update(true);
+  });
+
   /* ---- matchmaking (seeker) mode ---- */
   const seekControls=document.getElementById("seekerControls");
   function seekerOff(){ if(!seeker.on)return; seeker.on=false; seekControls.style.display="none";
@@ -1009,7 +1049,9 @@ function start(){
       `<b>Rivals</b> = single ${rivW} of every age, weighted by their own age's K aimed into your range — ${rivW} of nearby ages chasing the same partners count too; no extra discount is applied to rivals because the realized K is already the two-sided outcome. `+
       `Because the ratio's absolute level depends on how concentrated K is, <b>colors compare each metro to the national market computed the same way for you</b> (shown as "US" in the tooltip) rather than to a fixed 100. `+
       `The default range is the middle 50% of ${seeker.sex==="m"?"men":"women"}'s partners at your age in recently-formed unions; drag the sliders to set your own.`+raceNote+eduNote+` `+
-      `Covers the 224 PUMS metros — New York, Los Angeles and San Francisco as whole metros (not the 5 Connecticut metros or city insets).${natWarn}`;
+      (bnd==="market"
+        ? `Covers 221 CBSA metros + the 5 dating-market cores (not the 5 Connecticut metros, city insets, or giant-metro suburbs outside a core).`
+        : `Covers the 224 PUMS metros — New York, Los Angeles and San Francisco as whole metros (not the 5 Connecticut metros or city insets).`)+`${natWarn}`;
   }
   function setSeeker(on){
     seeker.on=on;
@@ -1067,6 +1109,7 @@ function start(){
     else if(yearPast()) p.set("yr",YEARSL[yi]);
     if(tblDir!=="women") p.set("tdir",tblDir);
     if(tblRace!=="all") p.set("trace",RSHORT_INV[tblRace]);
+    if(bnd!=="cbsa") p.set("bnd",bnd);
     const h=p.toString();
     history.replaceState(null,"",h?"#"+h:location.pathname+location.search);
   }
@@ -1074,6 +1117,7 @@ function start(){
     const p=new URLSearchParams(location.hash.slice(1));
     if(![...p.keys()].length) return;
     const g=k=>p.get(k);
+    if(g("bnd")==="market"){ bnd="market"; setBndUI(); }
     if(["abs","rate","ratio"].includes(g("v"))) mode=g("v");
     [...document.querySelectorAll("#modeSeg button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.m===mode));
     const bi=BANDS.indexOf(g("age")||"");
@@ -1101,7 +1145,7 @@ function start(){
     } else if(ECONLAB[g("econ")]){ econ=g("econ"); setEconUI(); }
     else if(RLONG[g("race")]){ race=RLONG[g("race")]; setRaceUI(); }
     else { const yiP=YEARSL.indexOf(+g("yr"));
-      if(yiP>=0&&yiP<YEARSL.length-1){ yi=yiP; yearSlider.value=yiP; } }
+      if(yiP>=0&&yiP<YEARSL.length-1&&bnd!=="market"){ yi=yiP; yearSlider.value=yiP; } }  // cores are current-year only
     if(g("tdir")==="men") tblDir="men";
     if(RLONG[g("trace")]) tblRace=RLONG[g("trace")];
   }
@@ -1264,9 +1308,10 @@ function start(){
     const tabs={};
     for(const b of ORDER){
       const bi=BANDS.indexOf(b), rows=[];
-      for(const d of D.metros){
+      for(const d of pts){
         if(d.city) continue;                                  // places, not metros
-        const M=d.code?M3.metros[d.code]:null;
+        if(d.core ? bnd!=="market" : (bnd==="market"&&d.pumsOnly)) continue;  // boundary type
+        const M=m3Of(d);
         let m,w,mm,wm,pub=false;
         if(key){ if(!M||!M.race[key]) continue; const n=M.race[key];
           m=n.m[bi]; w=n.w[bi]; mm=n.m_moe[bi]; wm=n.w_moe[bi]; }
@@ -1304,14 +1349,14 @@ function start(){
           <td class="num cnt">${fmt(x.w)}</td><td class="num cnt">${fmt(x.m)}</td></tr>`;
       });
       card.innerHTML=`<h3>${TITLES[b]}</h3>
-        <p class="cap">${grp}Top ${t.rows.length} of ${t.n} metros · most single ${dir==="women"?"women per 100 men":"men per 100 women"} · ± = 90% margin · ≈ = tied with row above</p>
+        <p class="cap">${bnd==="market"?"Dating-market boundaries · ":""}${grp}Top ${t.rows.length} of ${t.n} ${bnd==="market"?"markets":"metros"} · most single ${dir==="women"?"women per 100 men":"men per 100 women"} · ± = 90% margin · ≈ = tied with row above</p>
         <div class="tbl-scroll"><table class="rt"><thead><tr><th></th><th>Metro</th><th class="num">${colHead}</th><th class="num">Single ♀</th><th class="num">Single ♂</th></tr></thead><tbody>${rows}</tbody></table></div>`;
       wrap.appendChild(card);
     }
     const note=document.getElementById("tblNote");
     if(race==="all"){ note.style.display="none"; }
     else { note.style.display="block";
-      note.innerHTML=`<b>${RLABEL_T[race]} singles</b>, from Census PUMS microdata (${ACS_YEAR} 1-yr) — the only source with race by age by metro. Covers the 224 PUMS metros — New York, Los Angeles and San Francisco as whole metros (not the 5 Connecticut metros or the city insets); a metro needs ≥${fmt(RACE_FLOOR)} single ${RLABEL_T[race].toLowerCase()} adults in the bracket to appear. These subsets are smaller samples than the all-race view, so the rankings carry wider margins of error — treat the exact order, especially the extreme top rows on small metros, with caution.`;
+      note.innerHTML=`<b>${RLABEL_T[race]} singles</b>, from Census PUMS microdata (${ACS_YEAR} 1-yr) — the only source with race by age by metro. ${bnd==="market"?"Dating-market boundaries: 221 CBSA metros + the 5 county-group cores (core race cells are 1-year, so wider margins).":"Covers the 224 PUMS metros — New York, Los Angeles and San Francisco as whole metros (not the 5 Connecticut metros or the city insets)."} A ${bnd==="market"?"market":"metro"} needs ≥${fmt(RACE_FLOOR)} single ${RLABEL_T[race].toLowerCase()} adults in the bracket to appear. These subsets are smaller samples than the all-race view, so the rankings carry wider margins of error — treat the exact order, especially the extreme top rows on small metros, with caution.`;
     }
   }
   document.getElementById("dirSeg").addEventListener("click",e=>{
@@ -1354,7 +1399,7 @@ function start(){
     const meP=raceOn()?" ("+RSHORT[seeker.myRace]+")":eduOn()?" ("+ESHORT[seeker.myEdu]+")":"";
     const who=`${seeker.sex==="m"?"Man":"Woman"} ${seeker.age}${meP}, seeking ${tgt}${seeker.sex==="m"?"women":"men"} ${seeker.lo}–${seeker.hi}`;
     card.innerHTML=`<h3>Your market, ranked</h3>
-      <p class="cap">${who} · rivals per 100 reciprocal matches, lowest (best) first · US benchmark ${Math.round(nr)} · metros with ≥1,000 reciprocal matches (${rows.length} qualify) · ± = 90% margin · ≈ = tied with row above</p>
+      <p class="cap">${bnd==="market"?"Dating-market boundaries · ":""}${who} · rivals per 100 reciprocal matches, lowest (best) first · US benchmark ${Math.round(nr)} · ${bnd==="market"?"markets":"metros"} with ≥1,000 reciprocal matches (${rows.length} qualify) · ± = 90% margin · ≈ = tied with row above</p>
       <div class="tbl-scroll"><table class="rt"><thead><tr><th></th><th>Metro</th><th class="num">Rivals /100</th><th class="num">vs US</th><th class="num">Recip. matches</th></tr></thead><tbody>${html}</tbody></table></div>`;
     wrap.appendChild(card);
   }

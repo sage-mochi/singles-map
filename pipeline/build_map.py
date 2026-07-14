@@ -23,6 +23,7 @@ INJECT = {
     "__AGE__":      "pums_metro_age.json",  # single-year-of-age single counts + MOE (seeker mode)
     "__KERNEL__":   "age_kernel.json",      # empirical partner-age-gap kernel
     "__YEARS__":    "years_min.json",       # 2006-2023 B12002 history (time slider)
+    "__CORES__":    "market_cores.json",    # functional dating-market cores (boundary toggle)
 }
 TEMPLATE_NAME = "singles_age2_template.html"
 OUTPUT        = ROOT / "site" / "index.html"
