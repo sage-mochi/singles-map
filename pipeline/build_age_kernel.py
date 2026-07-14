@@ -17,10 +17,11 @@ import sys, io, json, pickle, zipfile
 import numpy as np, pandas as pd
 import build_pums_bulk as B
 
-COLS = ['SERIALNO', 'RELSHIPP', 'AGEP', 'SEX', 'PWGTP', 'RAC1P', 'HISP', 'MARHYP']
+COLS = ['SERIALNO', 'RELSHIPP', 'AGEP', 'SEX', 'PWGTP', 'RAC1P', 'HISP', 'MARHYP', 'SCHL']
 SEEKER_AGES = list(range(18, 76))
 GAPS = list(range(-20, 21))          # partner_age - seeker_age
 RACES = ['white', 'black', 'asian', 'hisp', 'two', 'other']
+EDUS  = ['ba', 'noba']               # BA+ split, same recode as build_pums_bulk
 FORM_WINDOW = 7                      # a marriage is "recent formation" if within this many years
 
 def recode_race(df):
@@ -30,7 +31,7 @@ def recode_race(df):
         ['hisp', 'white', 'black', 'asian', 'two'], default='other')
 
 def couples_state(st):
-    pkl = B.CACHE / f'couples3_{st}.pkl'          # v3 cache: adds MARHYP (formation year)
+    pkl = B.CACHE / f'couples4_{st}.pkl'          # v4 cache: adds SCHL (BA+ split)
     if pkl.exists():
         return pickle.load(open(pkl, 'rb'))
     z = zipfile.ZipFile(B.fetch_zip(st))
@@ -38,16 +39,19 @@ def couples_state(st):
     df = pd.read_csv(io.BytesIO(z.read(member)), usecols=COLS, low_memory=False)
     df = df[df.RELSHIPP.isin([20, 21, 22])].copy()
     df['rc'] = recode_race(df)
-    ref = df[df.RELSHIPP == 20][['SERIALNO','AGEP','SEX','PWGTP','rc','MARHYP']].rename(
-            columns={'AGEP':'a0','SEX':'s0','PWGTP':'wt','rc':'rc0','MARHYP':'my0'})
-    par = df[df.RELSHIPP.isin([21, 22])][['SERIALNO','AGEP','SEX','rc','RELSHIPP']].rename(
-            columns={'AGEP':'a1','SEX':'s1','rc':'rc1','RELSHIPP':'rel1'})
+    df['ed'] = np.where(df.SCHL >= 21, 'ba', 'noba')
+    ref = df[df.RELSHIPP == 20][['SERIALNO','AGEP','SEX','PWGTP','rc','ed','MARHYP']].rename(
+            columns={'AGEP':'a0','SEX':'s0','PWGTP':'wt','rc':'rc0','ed':'ed0','MARHYP':'my0'})
+    par = df[df.RELSHIPP.isin([21, 22])][['SERIALNO','AGEP','SEX','rc','ed','RELSHIPP']].rename(
+            columns={'AGEP':'a1','SEX':'s1','rc':'rc1','ed':'ed1','RELSHIPP':'rel1'})
     cp = ref.merge(par, on='SERIALNO')
     cp = cp[cp.s0 != cp.s1]                       # opposite-sex pairs only
     man  = np.where(cp.s0 == 1, cp.a0, cp.a1)
     wom  = np.where(cp.s0 == 2, cp.a0, cp.a1)
     manr = np.where(cp.s0 == 1, cp.rc0, cp.rc1)
     womr = np.where(cp.s0 == 2, cp.rc0, cp.rc1)
+    mane = np.where(cp.s0 == 1, cp.ed0, cp.ed1)
+    wome = np.where(cp.s0 == 2, cp.ed0, cp.ed1)
     # Marriage year applies only when the partner is a spouse (RELSHIPP 21) — then
     # both partners' MARHYP is the year they married each other, so the ref's is it.
     # For an unmarried partner (22) MARHYP is the ref's OLD marriage (or blank), not
@@ -55,32 +59,37 @@ def couples_state(st):
     spouse = (cp.rel1 == 21).to_numpy()
     mary = np.where(spouse, cp.my0.to_numpy(dtype='float'), np.nan)
     out = pd.DataFrame({'man': man, 'wom': wom, 'manr': manr, 'womr': womr,
+                        'mane': mane, 'wome': wome,
                         'wt': cp.wt.values, 'spouse': spouse, 'mary': mary})
     pickle.dump(out, open(pkl, 'wb'))
     return out
 
-def race_tables(cp):
-    """Race-pairing tables from the couples. Returns:
-    - pair: P(partner race | own race, own sex) — realized shares (already mutual);
+def pair_tables(cp, wcol, mcol, cats):
+    """Pairing tables from the couples over any categorical trait (race, edu).
+    Returns:
+    - pair: P(partner cat | own cat, own sex) — realized shares (already mutual);
       used for RIVAL aim, exactly like the realized age kernel.
     - aff: affinity = P(q,r) / (P(q)·P(r)) — observed over expected under random
       mixing, so group SIZE is factored out (raw shares would double-count local
       composition when applied to metro pools). Symmetric in the pair by
       construction — the two-directional reciprocity is one number.
-      Keyed [womanRace][manRace]."""
-    tbl = cp.groupby(['womr', 'manr']).wt.sum().unstack(fill_value=0.0)
-    tbl = tbl.reindex(index=RACES, columns=RACES, fill_value=0.0)
+      Keyed [womanCat][manCat]."""
+    tbl = cp.groupby([wcol, mcol]).wt.sum().unstack(fill_value=0.0)
+    tbl = tbl.reindex(index=cats, columns=cats, fill_value=0.0)
     joint = tbl / tbl.values.sum()
     pw, pm = joint.sum(axis=1), joint.sum(axis=0)
     aff = joint.div(pw, axis=0).div(pm, axis=1)
-    pair_m = {r: {q: round(float(joint.loc[q, r] / pm[r]), 5) for q in RACES}
-              for r in RACES if pm[r] > 0}          # men of race r -> partner q
-    pair_w = {q: {r: round(float(joint.loc[q, r] / pw[q]), 5) for r in RACES}
-              for q in RACES if pw[q] > 0}          # women of race q -> partner r
+    pair_m = {r: {q: round(float(joint.loc[q, r] / pm[r]), 5) for q in cats}
+              for r in cats if pm[r] > 0}          # men of cat r -> partner q
+    pair_w = {q: {r: round(float(joint.loc[q, r] / pw[q]), 5) for r in cats}
+              for q in cats if pw[q] > 0}          # women of cat q -> partner r
     return ({'m': pair_m, 'w': pair_w},
-            {q: {r: round(float(aff.loc[q, r]), 4) for r in RACES} for q in RACES},
-            {'w': {q: round(float(pw[q]), 5) for q in RACES},
-             'm': {r: round(float(pm[r]), 5) for r in RACES}})
+            {q: {r: round(float(aff.loc[q, r]), 4) for r in cats} for q in cats},
+            {'w': {q: round(float(pw[q]), 5) for q in cats},
+             'm': {r: round(float(pm[r]), 5) for r in cats}})
+
+def race_tables(cp):
+    return pair_tables(cp, 'womr', 'manr', RACES)
 
 def wquantile(v, w, q):
     o = np.argsort(v); v, w = v[o], w[o]
@@ -165,6 +174,7 @@ def main():
     m_cg = cond_gap(manF, womF, wtF)            # per-age conditional kernels (v3 reciprocity)
     w_cg = cond_gap(womF, manF, wtF)
     race_pair, race_aff, _ = race_tables(cp)   # race affinity: all couples (stable)
+    edu_pair, edu_aff, _ = pair_tables(cp, 'wome', 'mane', EDUS)   # edu: same logic
 
     out = {'meta': {'vintage':f'{B.config.VINTAGE} PUMS',
                     'definition':f'opposite-sex unions. Age kernels use the FORMATION subset '
@@ -181,10 +191,13 @@ def main():
                            '(rival aim); raceAff = joint/(marginal*marginal) affinity, '
                            'group size factored out, symmetric (reciprocity). National, all couples; '
                            'age-gap and race treated as independent factors.',
+                    'edu':'eduPair/eduAff = the same tables over the BA+ split (SCHL>=21), '
+                          'keyed [womanEdu][manEdu]. National, all couples; independent factor.',
                     'states': states},
            'bySex': {'m': m_by, 'w': w_by},          # default ranges + asymmetry chart
            'condGap': {'m': m_cg, 'w': w_cg},         # reciprocity + rival aim
-           'racePair': race_pair, 'raceAff': race_aff}   # race rival aim + reciprocity
+           'racePair': race_pair, 'raceAff': race_aff,   # race rival aim + reciprocity
+           'eduPair': edu_pair, 'eduAff': edu_aff}       # edu rival aim + reciprocity
     full = len(states) == len(B.STATES)
     name = 'age_kernel.json' if full else 'age_kernel_subset.json'
     json.dump(out, open(B.DATA / name, 'w'))
@@ -210,6 +223,11 @@ def main():
         print(f'  {r:6s} men: ' + '  '.join(f'{q} {100*v:.1f}%' for q, v in top))
     print('=== own-race affinity (obs/expected under random mixing) ===')
     print('  ' + '  '.join(f'{q}:{race_aff[q][q]:.1f}' for q in RACES))
+    print('=== edu pairing (realized shares) + affinity ===')
+    for e in EDUS:
+        row = edu_pair['m'].get(e, {})
+        print(f'  {e:5s} men: ' + '  '.join(f'{q} {100*v:.1f}%' for q, v in row.items()))
+    print('  affinity same-edu: ' + '  '.join(f'{q}:{edu_aff[q][q]:.2f}' for q in EDUS))
 
 if __name__ == '__main__':
     main()

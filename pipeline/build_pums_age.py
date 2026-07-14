@@ -23,10 +23,10 @@ RACES = ['white', 'black', 'asian', 'hisp', 'two', 'other']
 SPARSE_FLOOR = 10
 
 def aggregate_age_state(st):
-    """PUMA x single-year-age x sex x RACE aggregate (all 81 weight cols). The
-    sex-level totals are recovered by summing the race cells (replicate columns
-    are linear, so both levels keep exact SDR MOEs)."""
-    pkl = B._pkl('aggage2_', st)                 # v2 cache: adds race (vintage-namespaced)
+    """PUMA x single-year-age x sex x RACE x BA aggregate (all 81 weight cols).
+    The sex-level totals and the race/edu marginals are recovered by summing
+    cells (replicate columns are linear, so every level keeps exact SDR MOEs)."""
+    pkl = B._pkl('aggage3_', st)                 # v3 cache: adds ba (vintage-namespaced)
     if pkl.exists():
         return pickle.load(open(pkl, 'rb'))
     df = B.read_state(st)
@@ -36,7 +36,8 @@ def aggregate_age_state(st):
     df['race'] = np.select(
         [df.HISP != 1, df.RAC1P == 1, df.RAC1P == 2, df.RAC1P == 6, df.RAC1P == 9],
         ['hisp', 'white', 'black', 'asian', 'two'], default='other')
-    agg = df.groupby(['pkey', 'AGEP', 'sex', 'race'], observed=True)[B.WCOLS].sum()
+    df['ba']  = np.where(df.SCHL >= 21, 'ba', 'noba')      # same recode as build_pums_bulk
+    agg = df.groupby(['pkey', 'AGEP', 'sex', 'race', 'ba'], observed=True)[B.WCOLS].sum()
     pickle.dump(agg, open(pkl, 'wb'))
     return agg
 
@@ -57,7 +58,9 @@ def main():
         sys.stdout.write(st + ' '); sys.stdout.flush()
         if (i + 1) % 13 == 0: print()
     print('\nstates aggregated.')
-    nat_race = pd.concat(parts).groupby(['pkey', 'AGEP', 'sex', 'race'], observed=True).sum()
+    nat_full = pd.concat(parts).groupby(['pkey', 'AGEP', 'sex', 'race', 'ba'], observed=True).sum()
+    nat_race = nat_full.groupby(['pkey', 'AGEP', 'sex', 'race'], observed=True).sum()
+    nat_edu  = nat_full.groupby(['pkey', 'AGEP', 'sex', 'ba'], observed=True).sum()
     nat = nat_race.groupby(['pkey', 'AGEP', 'sex'], observed=True).sum()   # exact (linear)
 
     alloc = B.allocate(nat, xwl, ['AGEP', 'sex'])      # -> cbsa, AGEP, sex, est, moe
@@ -83,12 +86,26 @@ def main():
         node.setdefault('race', {}).setdefault(r.race, {}).setdefault(r.sex, {})[a] = \
             [est, round(r.moe)]
 
+    # edu x single-year cells (seeker-mode education filter), same sparse shape:
+    # {ba/noba:{sex:{age:[est,moe]}}}. Two thick groups, so 1-year cells hold up.
+    alloc_e = B.allocate(nat_edu, xwl, ['AGEP', 'sex', 'ba'])
+    alloc_e = alloc_e[alloc_e.cbsa != 'NONMETRO']
+    for _, r in alloc_e.iterrows():
+        a = int(r.AGEP)
+        if a < 20 or a > 64: continue
+        est = round(r.est)
+        if est < SPARSE_FLOOR: continue
+        node = metros.setdefault(r.cbsa, {'m':[0]*45,'w':[0]*45,'m_moe':[0]*45,'w_moe':[0]*45})
+        node.setdefault('edu', {}).setdefault(r.ba, {}).setdefault(r.sex, {})[a] = \
+            [est, round(r.moe)]
+
     vintage = B.config.VINTAGE5 if B.VTAG == '5yr' else B.config.VINTAGE
     out = {'meta': {'vintage':f'{vintage} PUMS',
                     'ages': AGES,
                     'note':'single (MAR!=1) men/women by single year of age, per CBSA; '
                            'MOE 90% from 80 replicate weights (SDR). race = sparse '
-                           'mutually-exclusive race cells {race:{sex:{age:[est,moe]}}}.',
+                           'mutually-exclusive race cells {race:{sex:{age:[est,moe]}}}; '
+                           'edu = sparse BA+ split (SCHL>=21) {ba/noba:{sex:{age:[est,moe]}}}.',
                     'states': states},
            'metros': metros}
     full = len(states) == len(B.STATES)

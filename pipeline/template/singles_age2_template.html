@@ -85,6 +85,8 @@
   .metro.city{stroke:var(--ink);stroke-width:1;stroke-dasharray:2.5 1.6}
   .metro.uncertain{stroke:#b9c2bf;stroke-width:.8;stroke-dasharray:2 2}
   .metro.active{stroke:var(--ink);stroke-width:1.5;stroke-dasharray:none;fill-opacity:.9}
+  .metro.tied{stroke:var(--ink);stroke-width:1.1;stroke-dasharray:1.2 2.4}
+  .tienote{font-size:11px;color:var(--ink-soft);margin-top:5px;padding-top:5px;border-top:1px solid var(--hair)}
   .lbl{font-family:"Public Sans";font-size:10.5px;fill:var(--ink);font-weight:500;paint-order:stroke;stroke:var(--panel);stroke-width:2.6px;stroke-linejoin:round}
   .leader{stroke:var(--ink-soft);stroke-width:.6;fill:none;opacity:.5}
   .leghead{font-family:"Public Sans";font-size:12px;font-weight:600}
@@ -209,7 +211,7 @@
   </div>
 
   <h2 class="sec">§2 · The same flip, on the map — and your own market</h2>
-  <p class="sub"><b>Claim: where you live nudges the number; who you are and what you seek set it.</b> Drag the age slider or press play and watch the map turn from blue to red — geography barely changes the story, age does. Scrub the <b>year slider</b> back to 2006 to watch two decades of the same picture: the pattern holds in every ACS vintage, even as individual metros drift. Then switch on the <b>matchmaking view</b> to measure <i>your</i> market: rivals per reciprocal match for your age, sex, race and search range. Four points are <b>cities, not metros</b> (dashed outline): Los Angeles, Long Beach and Anaheim are split out of their shared metro, and New York City stands alone — hover any of them for the geography caveat.</p>
+  <p class="sub"><b>Claim: where you live nudges the number; who you are and what you seek set it.</b> Drag the age slider or press play and watch the map turn from blue to red — geography barely changes the story, age does. Scrub the <b>year slider</b> back to 2006 to watch two decades of the same picture: the pattern holds in every ACS vintage, even as individual metros drift. Then switch on the <b>matchmaking view</b> to measure <i>your</i> market: rivals per reciprocal match for your age, sex, race, education and search range. Six points are <b>cities, not metros</b> (dashed outline): Los Angeles, Long Beach and Anaheim are split out of their shared metro, San Francisco and Oakland out of theirs, and New York City stands alone — hover any of them for the geography caveat.</p>
 
   <div class="toolbar" style="margin-bottom:2px">
     <span class="lab">Race / origin</span>
@@ -281,6 +283,20 @@
         <button data-sr="hisp">Hispanic</button>
         <button data-sr="two">Two+</button>
         <button data-sr="other">Other</button>
+      </div>
+    </div>
+    <div class="seeker-row">
+      <span class="lab">I have</span>
+      <div class="seg" id="seekerMyEdu" role="group" aria-label="Your education">
+        <button data-me="none" aria-pressed="true">—</button>
+        <button data-me="ba">Bachelor's+</button>
+        <button data-me="noba">No degree</button>
+      </div>
+      <span class="lab">Seeking</span>
+      <div class="seg" id="seekerSeekEdu" role="group" aria-label="Target education">
+        <button data-se="any" aria-pressed="true">Any</button>
+        <button data-se="ba">Bachelor's+</button>
+        <button data-se="noba">No degree</button>
       </div>
     </div>
     <p class="racehint show" id="seekerHint"></p>
@@ -551,7 +567,8 @@ function start(){
   let mode="abs", sel=-1, race="all", econ="all"; // sel -1 = all ages
   let tblDir="women", tblRace="all";              // ranking-table state (shared with deep links)
   const seeker={on:false, sex:"m", age:30, lo:28, hi:31,
-                myRace:"none", seek:new Set(["any"])};      // matchmaking mode
+                myRace:"none", seek:new Set(["any"]),
+                myEdu:"none", seekEdu:"any"};               // matchmaking mode
   /* time slider: YEARSL = [history…, current]. The current year's rows come from
      the live map data (byage/M3); historical rows from YRS (published B12002 per
      vintage). The PUMS lenses (econ/race/seeker) are current-year only — engaging
@@ -600,6 +617,19 @@ function start(){
   const RACES6=["white","black","asian","hisp","two","other"];
   const RSHORT={white:"White",black:"Black",asian:"Asian",hisp:"Hispanic",two:"Two+",other:"Other"};
   const raceOn=()=> seeker.myRace!=="none" && !seeker.seek.has("any");
+  /* ---- edu filter (same two-directional logic; BA+ split) ----
+     Mutually exclusive with the race filter — PUMS metro cells carry race x age
+     and edu x age marginals, not their joint, so the handlers clear one when the
+     other's target is set. */
+  const EDU2=["ba","noba"];
+  const ESHORT={ba:"BA+",noba:"no-degree"};
+  const eduOn=()=> seeker.myEdu!=="none" && seeker.seekEdu!=="any";
+  function eduAffN(){                   // reciprocity of target edu with seeker's edu
+    const A=KERNEL.eduAff, q=seeker.seekEdu; let mx=0;
+    if(seeker.sex==="m"){ for(const r of EDU2) mx=Math.max(mx,A[q][r]); return mx>0?(A[q][seeker.myEdu]||0)/mx:0; }
+    for(const w of EDU2) mx=Math.max(mx,A[w][q]);
+    return mx>0?(A[seeker.myEdu][q]||0)/mx:0;
+  }
   function affN(q){                     // reciprocity of target race q with seeker's race
     const A=KERNEL.raceAff; let mx=0;
     if(seeker.sex==="m"){ for(const r of RACES6) mx=Math.max(mx,A[q][r]); return mx>0?(A[q][seeker.myRace]||0)/mx:0; }
@@ -608,6 +638,20 @@ function start(){
   }
   function buildInputs(node){           // -> arrays the core metric runs on
     const O=seeker.sex==="m"?"w":"m", S=seeker.sex;
+    if(eduOn()){
+      if(!node.edu) return null;
+      const q=seeker.seekEdu, w=eduAffN();
+      const oppRaw=new Array(45).fill(0), oppEff=new Array(45).fill(0), oppV=new Array(45).fill(0),
+            same=new Array(45).fill(0), sameV=new Array(45).fill(0);
+      const src=node.edu[q]&&node.edu[q][O];
+      if(src) for(const ag in src){ const i=ag-20; oppRaw[i]+=src[ag][0]; oppEff[i]+=src[ag][0]*w; oppV[i]+=(src[ag][1]*w)**2; }
+      for(const r of EDU2){
+        const aim=(KERNEL.eduPair[S][r]||{})[q]||0; if(!aim) continue;
+        const s2=node.edu[r]&&node.edu[r][S]; if(!s2) continue;
+        for(const ag in s2){ const i=ag-20; same[i]+=s2[ag][0]*aim; sameV[i]+=(s2[ag][1]*aim)**2; }
+      }
+      return {oppRaw,oppEff,oppV,same,sameV};
+    }
     if(!raceOn())
       return {oppRaw:node[O], oppEff:node[O], oppV:node[O+"_moe"].map(v=>v*v),
               same:node[S], sameV:node[S+"_moe"].map(v=>v*v)};
@@ -655,21 +699,38 @@ function start(){
     const x=r.code?AGE.metros[r.code]:null; if(!x) return null;
     return seekCalc(x);
   }
+  /* Metros statistically TIED with r for the current search: |Δratio| within the
+     combined 90% margin — the map can rank r against the rest, not against these.
+     (The vs-national verdict alone invites false metro-vs-metro reads.) */
+  function seekTies(r){
+    const out=new Set();
+    if(!seeker.on||!r||!r._sr||r._sr.noRecip) return out;
+    for(const d of pts){
+      if(d===r||!shown(d)||!d._sr||d._sr.noRecip) continue;
+      if(Math.abs(d._sr.ratio-r._sr.ratio)<Math.hypot(d._sr.moe,r._sr.moe)) out.add(d);
+    }
+    return out;
+  }
   /* National benchmark for the current seeker settings. The absolute level of the
      ratio depends on kernel concentration and range width (a balanced metro
      doesn't read exactly 100), so favorable/tough is judged RELATIVE to the same
      computation on the national age(+race) distribution — model constants cancel;
      what remains is geography. Raw ratio + acceptance stay visible in the tooltip. */
   const NATAGE={m:new Array(45).fill(0), w:new Array(45).fill(0),
-                m_moe:new Array(45).fill(0), w_moe:new Array(45).fill(0), race:{}};
+                m_moe:new Array(45).fill(0), w_moe:new Array(45).fill(0), race:{}, edu:{}};
+  function natAdd(dstGrp, srcGrp){       // sum sparse {cat:{sex:{age:[est,moe]}}} cells
+    for(const q in srcGrp) for(const s in srcGrp[q]){
+      const rq = dstGrp[q] || (dstGrp[q]={});
+      const dst = rq[s] || (rq[s]={});
+      const src = srcGrp[q][s];
+      for(const ag in src){ (dst[ag]=dst[ag]||[0,0])[0]+=src[ag][0]; }   // national MOE ~0
+    }
+  }
   for(const cb in AGE.metros){const x=AGE.metros[cb];
     for(let i=0;i<45;i++){NATAGE.m[i]+=x.m[i]; NATAGE.w[i]+=x.w[i];}
-    if(x.race) for(const q in x.race) for(const s in x.race[q]){
-      const rq = NATAGE.race[q] || (NATAGE.race[q]={});
-      const dst = rq[s] || (rq[s]={});
-      const src = x.race[q][s];
-      for(const ag in src){ (dst[ag]=dst[ag]||[0,0])[0]+=src[ag][0]; }   // national MOE ~0
-    }}
+    if(x.race) natAdd(NATAGE.race, x.race);
+    if(x.edu)  natAdd(NATAGE.edu,  x.edu);
+  }
   let natSR=null;
   function seekNational(){ natSR=seekCalc(NATAGE); }
   const natRef=()=> (natSR&&!natSR.noRecip)?natSR.ratio:100;
@@ -693,8 +754,9 @@ function start(){
       const sr = r._sr || ((r.code&&AGE.metros[r.code])?seekerData(r):null);
       if(!sr) return `<div class="hd">${r.full}</div><div class="tg"><span class="k">your market</span><b>no PUMS estimate</b></div>${cnote}`;
       const oppW=seeker.sex==="m"?"women":"men", rivW=seeker.sex==="m"?"men":"women";
-      const tgt = raceOn() ? [...seeker.seek].map(q=>RSHORT[q]).join("+")+" " : "";
-      const me  = raceOn() ? ` ${RSHORT[seeker.myRace]}` : "";
+      const tgt = raceOn() ? [...seeker.seek].map(q=>RSHORT[q]).join("+")+" "
+                : eduOn() ? ESHORT[seeker.seekEdu]+" " : "";
+      const me  = raceOn() ? ` ${RSHORT[seeker.myRace]}` : eduOn() ? ` ${ESHORT[seeker.myEdu]}` : "";
       if(sr.noRecip)
         return `<div class="hd">${r.full}</div>
           <div class="tg"><span class="k">Single ${tgt}${oppW}, ${seeker.lo}–${seeker.hi}</span><b>${fmt(Math.round(sr.matches))}</b></div>
@@ -704,13 +766,18 @@ function start(){
       const verdict = within ? `<div class="verdict" style="color:#cdd6d4">About the national market for you — within margin of error</div>`
                     : fav   ? `<div class="verdict" style="color:#8fe6c4">Favorable — ${pct}% fewer rivals per match than the national market for you</div>`
                             : `<div class="verdict" style="color:#f0b39c">Tough — ${pct}% more rivals per match than the national market for you</div>`;
-      const recipLab = raceOn() ? `…open to a${me} ${seeker.age}-yr-old (age+race reciprocity)` : `…open to age ${seeker.age} (reciprocity)`;
+      const nT=seekTies(r).size;
+      const tieN = nT>0 ? `<div class="tienote">Statistically tied with <b>${nT}</b> other metro${nT>1?"s":""} (dotted outlines) — differences within the combined 90% margin; the data can't rank ${r.n} against them.</div>`
+                        : `<div class="tienote">No other shown metro is statistically tied with ${r.n} for this search.</div>`;
+      const recipLab = raceOn() ? `…open to a${me} ${seeker.age}-yr-old (age+race reciprocity)`
+                     : eduOn() ? `…open to a${me} ${seeker.age}-yr-old (age+education reciprocity)`
+                     : `…open to age ${seeker.age} (reciprocity)`;
       return `<div class="hd">${r.full}</div>
         <div class="tg"><span class="k">Single ${tgt}${oppW}, ${seeker.lo}–${seeker.hi}</span><b>${fmt(Math.round(sr.matches))}</b></div>
         <div class="tg"><span class="k">${recipLab}</span><b>${fmt(Math.round(sr.mEff))} <span class="moe">(${Math.round(100*sr.accept)}%)</span></b></div>
-        <div class="tg"><span class="k">Competing ${rivW} (${raceOn()?"all races, ":""}kernel-weighted)</span><b>${fmt(Math.round(sr.rivals))}</b></div>
+        <div class="tg"><span class="k">Competing ${rivW} (${raceOn()?"all races, ":eduOn()?"all education levels, ":""}kernel-weighted)</span><b>${fmt(Math.round(sr.rivals))}</b></div>
         <div class="tg"><span class="k">Rivals per 100 reciprocal matches</span><b>${Math.round(sr.ratio)} <span class="moe">±${Math.round(sr.moe)} · US ${Math.round(nr)}</span></b></div>
-        <div class="tg"><span class="k" style="font-size:10.5px">${seeker.sex==="m"?"Man":"Woman"} ${seeker.age}${me?" ·"+me:""}, open to ${tgt}${seeker.lo}–${seeker.hi}</span></div>${verdict}${cnote}`;
+        <div class="tg"><span class="k" style="font-size:10.5px">${seeker.sex==="m"?"Man":"Woman"} ${seeker.age}${me?" ·"+me:""}, open to ${tgt}${seeker.lo}–${seeker.hi}</span></div>${verdict}${tieN}${cnote}`;
     }
     if(!hasData(r)){
       if(econ==="all"&&race==="all")
@@ -750,6 +817,8 @@ function start(){
     if(r!==active){
       active=r;
       circles.classed("active",d=>d===r);
+      const ties=seekTies(r);                     // empty outside seeker mode
+      circles.classed("tied",d=>ties.has(d));
       if(r){ circles.filter(d=>d===r).raise(); tip.innerHTML=tipHTML(r); tip.style.opacity=1; }
       else tip.style.opacity=0;
     }
@@ -858,6 +927,8 @@ function start(){
     (animate?circles.transition().duration(520):circles).attr("r",d=>shown(d)?S(valf(d)):0);
     circles.sort((a,b)=>S(valf(b))-S(valf(a)));
     ageNow.textContent=AGE_LABELS[sel+1]; ageNowSub.textContent=SUBS[sel+1];
+    const ties=seekTies(active);                // refresh/clear tie outlines on any control change
+    circles.classed("tied",d=>ties.has(d));
     if(active) tip.innerHTML=tipHTML(active);   // keep an open tooltip fresh across control changes
     // in seeker mode the age-band slider, play and sizing modes have no effect — say so
     ageRow.classList.toggle("disabled",seeker.on); slider.disabled=seeker.on; playBtn.disabled=seeker.on;
@@ -924,8 +995,12 @@ function start(){
     const raceNote = raceOn()
       ? ` <b>Race filtering</b> adds the same logic in the race dimension: matches are further discounted by <b>race reciprocity</b> — how much more or less often ${[...seeker.seek].map(q=>RSHORT[q]).join("/")} ${oppW} pair with a ${RSHORT[seeker.myRace]} partner than random mixing would produce (group sizes are factored out, so this measures affinity, not who happens to be nearby) — and rivals include ${rivW} of <i>every</i> race, weighted by how often their group actually partners with your target races. Age-gap and race are treated as independent factors, measured nationally (not per metro), from the same realized couples.`
       : "";
+    const eduNote = eduOn()
+      ? ` <b>Education filtering</b> adds the same logic in the education dimension: matches are further discounted by <b>education reciprocity</b> — how much more or less often ${ESHORT[seeker.seekEdu]} ${oppW} pair with a ${ESHORT[seeker.myEdu]} partner than random mixing would produce (group sizes are factored out, so this measures assortativity, not who happens to be nearby) — and rivals include ${rivW} of <i>both</i> education levels, weighted by how often their group actually partners with ${ESHORT[seeker.seekEdu]} ${oppW}. Age-gap and education are treated as independent factors, measured nationally (not per metro), from the same realized couples. (The education and race filters are one-at-a-time — the metro cells exist for each separately, not jointly.)`
+      : "";
+    const tgtLab = raceOn()?[...seeker.seek].map(q=>RSHORT[q]).join("/")+" " : eduOn()?ESHORT[seeker.seekEdu]+" " : "";
     const natWarn = natSR && (natSR.noRecip || natSR.accept<0.2)
-      ? `<br><b>⚠</b> Nationally, only <b>${natSR.noRecip?"~0":Math.round(100*natSR.accept)}%</b> of single ${raceOn()?[...seeker.seek].map(q=>RSHORT[q]).join("/")+" ":""}${oppW} in this range pair with someone like you (age${raceOn()?" + race":""}) — this search is thin <i>everywhere</i>; the colors just compare metros within that reality.`
+      ? `<br><b>⚠</b> Nationally, only <b>${natSR.noRecip?"~0":Math.round(100*natSR.accept)}%</b> of single ${tgtLab}${oppW} in this range pair with someone like you (age${raceOn()?" + race":eduOn()?" + education":""}) — this search is thin <i>everywhere</i>; the colors just compare metros within that reality.`
       : "";
     document.getElementById("seekerHint").innerHTML=
       `Your <b>market ratio</b> = same-sex rivals ÷ <b>reciprocal</b> matches in your range, from PUMS single counts by single year of age. `+
@@ -933,14 +1008,14 @@ function start(){
       `(their age group's partner-age curve <b>K</b>, measured from <b>recently-formed</b> unions — cohabiting couples plus marriages of the last few years — so an older seeker's odds reflect who pairs at that age today, not decades-old marriages; realized pairings, what happens, not stated preference). `+
       `<b>Rivals</b> = single ${rivW} of every age, weighted by their own age's K aimed into your range — ${rivW} of nearby ages chasing the same partners count too; no extra discount is applied to rivals because the realized K is already the two-sided outcome. `+
       `Because the ratio's absolute level depends on how concentrated K is, <b>colors compare each metro to the national market computed the same way for you</b> (shown as "US" in the tooltip) rather than to a fixed 100. `+
-      `The default range is the middle 50% of ${seeker.sex==="m"?"men":"women"}'s partners at your age in recently-formed unions; drag the sliders to set your own.`+raceNote+` `+
-      `Covers 222 metros + New York + Los Angeles (not the 5 Connecticut metros or city insets).${natWarn}`;
+      `The default range is the middle 50% of ${seeker.sex==="m"?"men":"women"}'s partners at your age in recently-formed unions; drag the sliders to set your own.`+raceNote+eduNote+` `+
+      `Covers the 224 PUMS metros — New York, Los Angeles and San Francisco as whole metros (not the 5 Connecticut metros or city insets).${natWarn}`;
   }
   function setSeeker(on){
     seeker.on=on;
     [...document.querySelectorAll("#seekerToggle button")].forEach(x=>x.setAttribute("aria-pressed",(x.dataset.s==="on")===on));
     seekControls.style.display=on?"block":"none";
-    if(on){ econ="all"; race="all"; resetYear(); setEconUI(); setRaceUI(); applyKernelDefault(); setSeekRaceUI(); seekerLabels(); }
+    if(on){ econ="all"; race="all"; resetYear(); setEconUI(); setRaceUI(); applyKernelDefault(); setSeekRaceUI(); setSeekEduUI(); seekerLabels(); }
     update(true);
   }
   document.getElementById("seekerToggle").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b)return; setSeeker(b.dataset.s==="on"); });
@@ -985,6 +1060,8 @@ function start(){
       p.set("seek",seeker.sex); p.set("sage",seeker.age); p.set("open",seeker.lo+"-"+seeker.hi);
       if(seeker.myRace!=="none") p.set("iam",seeker.myRace);
       if(!seeker.seek.has("any")) p.set("want",[...seeker.seek].join(","));
+      if(seeker.myEdu!=="none") p.set("ihave",seeker.myEdu);
+      if(seeker.seekEdu!=="any") p.set("wantedu",seeker.seekEdu);
     } else if(econ!=="all") p.set("econ",econ);
     else if(race!=="all") p.set("race",RSHORT_INV[race]);
     else if(yearPast()) p.set("yr",YEARSL[yi]);
@@ -1010,6 +1087,9 @@ function start(){
       if(RACES6.includes(g("iam"))) seeker.myRace=g("iam");
       const want=(g("want")||"").split(",").filter(x=>RACES6.includes(x));
       if(want.length&&seeker.myRace!=="none") seeker.seek=new Set(want);
+      if(EDU2.includes(g("ihave"))) seeker.myEdu=g("ihave");
+      if(EDU2.includes(g("wantedu"))&&seeker.myEdu!=="none"&&seeker.seek.has("any"))
+        seeker.seekEdu=g("wantedu");                   // race target wins if both present
       // sync the seeker UI without re-defaulting the decoded range
       [...document.querySelectorAll("#seekerToggle button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.s==="on"));
       [...document.querySelectorAll("#seekerSex button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.x===seeker.sex));
@@ -1017,7 +1097,7 @@ function start(){
       document.getElementById("seekerAge").value=seeker.age;
       document.getElementById("seekerLo").value=seeker.lo;
       document.getElementById("seekerHi").value=seeker.hi;
-      setSeekRaceUI(); seekerLabels();
+      setSeekRaceUI(); setSeekEduUI(); seekerLabels();
     } else if(ECONLAB[g("econ")]){ econ=g("econ"); setEconUI(); }
     else if(RLONG[g("race")]){ race=RLONG[g("race")]; setRaceUI(); }
     else { const yiP=YEARSL.indexOf(+g("yr"));
@@ -1047,7 +1127,28 @@ function start(){
       if(seeker.seek.has(v)) seeker.seek.delete(v); else seeker.seek.add(v);
       if(!seeker.seek.size) seeker.seek=new Set(["any"]);
     }
-    setSeekRaceUI(); seekerLabels(); update(true);
+    if(!seeker.seek.has("any")) seeker.seekEdu="any";  // race and edu filters are exclusive
+    setSeekRaceUI(); setSeekEduUI(); seekerLabels(); update(true);
+  });
+  /* edu filter: same two-directional pattern; target requires "I have" */
+  function setSeekEduUI(){
+    [...document.querySelectorAll("#seekerMyEdu button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.me===seeker.myEdu));
+    [...document.querySelectorAll("#seekerSeekEdu button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.se===seeker.seekEdu));
+    document.getElementById("seekerSeekEdu").classList.toggle("segoff",seeker.myEdu==="none");
+  }
+  document.getElementById("seekerMyEdu").addEventListener("click",e=>{
+    const b=e.target.closest("button"); if(!b)return;
+    seeker.myEdu=b.dataset.me;
+    if(seeker.myEdu==="none") seeker.seekEdu="any";
+    setSeekEduUI(); seekerLabels(); update(true);
+  });
+  document.getElementById("seekerSeekEdu").addEventListener("click",e=>{
+    const b=e.target.closest("button"); if(!b)return;
+    const v=b.dataset.se;
+    if(v!=="any"&&seeker.myEdu==="none") return;       // pick "I have" first
+    seeker.seekEdu = (v!=="any"&&seeker.seekEdu===v) ? "any" : v;
+    if(seeker.seekEdu!=="any") seeker.seek=new Set(["any"]);  // race and edu filters are exclusive
+    setSeekRaceUI(); setSeekEduUI(); seekerLabels(); update(true);
   });
 
   /* applyURL() + the initial update(false) run at the END of start(), after every
@@ -1055,8 +1156,9 @@ function start(){
      needs the ranking-table consts (TDZ otherwise). */
   function asymChart(){
     const save={on:seeker.on,sex:seeker.sex,age:seeker.age,lo:seeker.lo,hi:seeker.hi,
-                myRace:seeker.myRace,seek:seeker.seek};
+                myRace:seeker.myRace,seek:seeker.seek,myEdu:seeker.myEdu,seekEdu:seeker.seekEdu};
     seeker.on=true; seeker.myRace="none"; seeker.seek=new Set(["any"]);
+    seeker.myEdu="none"; seeker.seekEdu="any";
     const series={m:[],w:[]};
     for(const sx of ["m","w"]){
       seeker.sex=sx;
@@ -1209,7 +1311,7 @@ function start(){
     const note=document.getElementById("tblNote");
     if(race==="all"){ note.style.display="none"; }
     else { note.style.display="block";
-      note.innerHTML=`<b>${RLABEL_T[race]} singles</b>, from Census PUMS microdata (${ACS_YEAR} 1-yr) — the only source with race by age by metro. Covers the 222 PUMS metros plus New York and Los Angeles (not the 5 Connecticut metros or the city insets); a metro needs ≥${fmt(RACE_FLOOR)} single ${RLABEL_T[race].toLowerCase()} adults in the bracket to appear. These subsets are smaller samples than the all-race view, so the rankings carry wider margins of error — treat the exact order, especially the extreme top rows on small metros, with caution.`;
+      note.innerHTML=`<b>${RLABEL_T[race]} singles</b>, from Census PUMS microdata (${ACS_YEAR} 1-yr) — the only source with race by age by metro. Covers the 224 PUMS metros — New York, Los Angeles and San Francisco as whole metros (not the 5 Connecticut metros or the city insets); a metro needs ≥${fmt(RACE_FLOOR)} single ${RLABEL_T[race].toLowerCase()} adults in the bracket to appear. These subsets are smaller samples than the all-race view, so the rankings carry wider margins of error — treat the exact order, especially the extreme top rows on small metros, with caution.`;
     }
   }
   document.getElementById("dirSeg").addEventListener("click",e=>{
@@ -1248,8 +1350,9 @@ function start(){
         <td class="num" style="font-weight:600;color:${rel<0?SEEK_FAV:SEEK_TOUGH}">${rel>0?"+":""}${Math.round(rel)}%</td>
         <td class="num cnt">${fmt(Math.round(x.pool))}</td></tr>`;
     });
-    const tgt=raceOn()?[...seeker.seek].map(q=>RSHORT[q]).join("+")+" ":"";
-    const who=`${seeker.sex==="m"?"Man":"Woman"} ${seeker.age}${raceOn()?" ("+RSHORT[seeker.myRace]+")":""}, seeking ${tgt}${seeker.sex==="m"?"women":"men"} ${seeker.lo}–${seeker.hi}`;
+    const tgt=raceOn()?[...seeker.seek].map(q=>RSHORT[q]).join("+")+" ":eduOn()?ESHORT[seeker.seekEdu]+" ":"";
+    const meP=raceOn()?" ("+RSHORT[seeker.myRace]+")":eduOn()?" ("+ESHORT[seeker.myEdu]+")":"";
+    const who=`${seeker.sex==="m"?"Man":"Woman"} ${seeker.age}${meP}, seeking ${tgt}${seeker.sex==="m"?"women":"men"} ${seeker.lo}–${seeker.hi}`;
     card.innerHTML=`<h3>Your market, ranked</h3>
       <p class="cap">${who} · rivals per 100 reciprocal matches, lowest (best) first · US benchmark ${Math.round(nr)} · metros with ≥1,000 reciprocal matches (${rows.length} qualify) · ± = 90% margin · ≈ = tied with row above</p>
       <div class="tbl-scroll"><table class="rt"><thead><tr><th></th><th>Metro</th><th class="num">Rivals /100</th><th class="num">vs US</th><th class="num">Recip. matches</th></tr></thead><tbody>${html}</tbody></table></div>`;
@@ -1344,7 +1447,7 @@ function start(){
    <p><b>What "single" means.</b> Every unmarried adult — never-married, divorced, separated, or widowed — from table <code>B12002</code>, matching the original National Geographic definition. (Never-married only would tilt nearly every bar and circle blue, since men marry later; the divorced and widowed are what create the female surpluses at older ages.)</p>
    <p><b>What a head-count gap still can't tell you.</b> Three limits no Census table removes: it counts <b>everyone single, not everyone looking</b> — the retired widower and the active dater are one number here; it ignores <b>who's compatible</b> — sexual orientation isn't in these tables, and most people partner near their own age, so a metro's overall surplus rarely matches the pool a given person actually draws from; and it treats <b>"unmarried" as "available,"</b> though many are cohabiting or otherwise partnered. Read it as a demographic portrait, not dating odds.</p>
    <p><b>Three ways to size the circles.</b> <b>Absolute gap</b> is the original's metric — raw head-count difference, which rewards big metros. The other two normalize for size and, as a result, rank metros identically: <b>per 1,000 singles</b> expresses the gap as a share of the local single pool, while <b>men per 100 women</b> is the plain sex ratio — the most readable apples-to-apples number (100 = parity, 130 = thirty percent more men, 77 = its mirror image for women). The ratio view is sized by the log of the ratio, so an equal imbalance on either side draws an equal circle.</p>
-   <p><b>Precision.</b> Slicing into five-year bands shrinks each estimate and widens its margin of error; small-metro single bands are noisier than the all-ages view. Hovering any covered metro shows that <b>margin of error</b> — 90%, from the 80 PUMS replicate weights (band, bucket and all-ages aggregates combined by root-sum-square). On the base age view the displayed count is the published table while the margin is the PUMS estimate of the same figure (their own published margins are comparable); the economic view is 1-year PUMS throughout, and the <b>race views draw on the 5-year __ACS5RANGE__ PUMS</b> — five times the sample, so for the same thin race×metro×age cell the margin is roughly <i>half</i> the 1-year's, which is why race is the one lens worth the currency trade. Any metro whose male–female gap falls <i>within</i> its margin is faded and dashed, and is tallied in the grey <b>“too close”</b> middle of the leaning bar — flagging the lean as not statistically distinguishable. The ranking tables carry the same discipline: every ratio shows its ±90% margin, ranks tied with the row above (difference within the combined margin) are marked <b>≈</b> — the exact order among tied rows is noise — and an 8,000-single floor (1,000 for race views, 1,000 reciprocal matches for the personal ranking) filters the worst small-sample rows. The nine areas without PUMS data (city insets, Connecticut) carry no margin (†). The normalized views clip at the legend maximum so a few tiny, lopsided metros don't blow out the scale. The same caution applies to the ranking tables: an 8,000-single floor filters the worst noise, but the smallest qualifying metros (and the most extreme ratios, like Macon's 35–39 figure) rest on a few thousand people and carry wide error bars — the underlying counts are shown so you can weigh each row.</p>`;
+   <p><b>Precision.</b> Slicing into five-year bands shrinks each estimate and widens its margin of error; small-metro single bands are noisier than the all-ages view. Hovering any covered metro shows that <b>margin of error</b> — 90%, from the 80 PUMS replicate weights (band, bucket and all-ages aggregates combined by root-sum-square). On the base age view the displayed count is the published table while the margin is the PUMS estimate of the same figure (their own published margins are comparable); the economic view is 1-year PUMS throughout, and the <b>race views draw on the 5-year __ACS5RANGE__ PUMS</b> — five times the sample, so for the same thin race×metro×age cell the margin is roughly <i>half</i> the 1-year's, which is why race is the one lens worth the currency trade. Any metro whose male–female gap falls <i>within</i> its margin is faded and dashed, and is tallied in the grey <b>“too close”</b> middle of the leaning bar — flagging the lean as not statistically distinguishable. The ranking tables carry the same discipline: every ratio shows its ±90% margin, ranks tied with the row above (difference within the combined margin) are marked <b>≈</b> — the exact order among tied rows is noise — and an 8,000-single floor (1,000 for race views, 1,000 reciprocal matches for the personal ranking) filters the worst small-sample rows. The eleven areas without PUMS data (city insets, Connecticut) carry no margin (†). The normalized views clip at the legend maximum so a few tiny, lopsided metros don't blow out the scale. The same caution applies to the ranking tables: an 8,000-single floor filters the worst noise, but the smallest qualifying metros (and the most extreme ratios, like Macon's 35–39 figure) rest on a few thousand people and carry wide error bars — the underlying counts are shown so you can weigh each row.</p>`;
 
   /* initial render: after every section's declarations (a seeker deep link
      renders the personal ranking table on first paint) */
