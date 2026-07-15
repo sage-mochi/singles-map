@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>The Singles Map — It's When, Not Where</title>
+<title>The Singles Map — It's When, Not Where*</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -19,6 +19,9 @@
   h1{font-family:"Fraunces",Georgia,serif;font-weight:500;font-size:clamp(28px,4.6vw,46px);line-height:1.04;margin:0;letter-spacing:-.01em}
   h1 em{font-style:italic;color:var(--ink-soft)}
   .dek{margin:14px 0 0;max-width:64ch;color:var(--ink-soft);font-size:15px}
+  .ast{color:#b3543a;font-style:normal}
+  .turn{margin:8px 0 0;max-width:64ch;color:var(--ink);font-size:15.5px;font-style:italic}
+  .turn b{font-style:normal}
   .abstract{background:var(--panel);border:1px solid var(--hair);border-left:3px solid var(--ink);
     padding:16px 20px;margin:22px 0 0;max-width:860px;font-size:13.5px;line-height:1.66;color:var(--ink-soft)}
   .abstract b{color:var(--ink)} .abstract em{color:var(--ink)}
@@ -185,8 +188,9 @@
 <div class="wrap">
   <header>
     <p class="eyebrow">An interactive thesis · American Community Survey · __ACSYEAR__ 1-Year Estimates</p>
-    <h1>The Singles Map: it's <em>when</em>, not where</h1>
-    <p class="dek">The famous map sizes each metro by its surplus of single men (blue) or single women (red), ages 20–64. But that single number hides the real pattern — the imbalance is driven far more by <em>age</em> than by <em>place</em>. That correction is chapter one: below it, a matchmaking view measures <em>your</em> market, where who you are and what you seek matter more than either when or where.</p>
+    <h1>The Singles Map: it's <em>when</em>, not where<span class="ast">*</span></h1>
+    <p class="turn"><span class="ast">*</span>at Census boundaries. Measured at dating-app <b>radius</b>, where comes back — as the one lever you can actually pull.</p>
+    <p class="dek">The famous map sizes each metro by its surplus of single men (blue) or single women (red), ages 20–64. But that single number hides the real pattern — the imbalance is driven far more by <em>age</em> than by <em>place</em>. That correction is chapter one. Below it, a matchmaking view measures <em>your</em> market — and when that market is measured the way dating apps draw it, by radius rather than by metro line, geography returns: smaller than the old map claimed, larger than our own first chapter implies, and unlike every other lever in this data, yours to choose.</p>
     <div class="abstract">
       <span class="ab-label">Abstract</span>
       The 2007 National Geographic "Singles Map" advised singles to move wherever their target
@@ -195,15 +199,22 @@
       not place: nearly every metro tilts male among singles in their twenties and female past
       45, flipping around 40. Second, the same-age sex ratio mismeasures any <em>individual's</em>
       market, because partnering is cross-age and assortative. From 70 million observed couples
-      we measure who actually pairs with whom by age and race, and compute each seeker's market —
-      rivals per <em>reciprocal</em> match — for every metro, with margins of error from the
-      Census replicate weights. The levers of a single person's market rank: <b>(1) who you
-      are</b> — a 30-year-old man faces ~165 rivals per 100 reciprocal matches nationally, a
-      30-year-old woman ~128; <b>(2) what you seek</b> — income and cross-race filters move
+      we measure who actually pairs with whom by age, race and education, and compute each
+      seeker's market — rivals per <em>reciprocal</em> match — with margins of error from the
+      Census replicate weights. <em>Then the correction gets corrected.</em> Metro boundaries are
+      the wrong market unit — apps match by radius, and CBSA lines dilute New York's core while
+      splitting the Bay Area's in two — and measured at app radius with an assortative search,
+      geography returns: a college-educated 32-year-old man's market spans <b>−21% (New York) to
+      +21% (Phoenix)</b> against the national benchmark, a spread wider than the entire 25-to-40
+      swing of his age curve. The levers of a single person's market rank by size: <b>(1) who
+      you are</b> — a 30-year-old man faces ~165 rivals per 100 reciprocal matches nationally, a
+      30-year-old woman ~128; <b>(2) what you seek</b> — race, education and income filters move
       markets by multiples; <b>(3) when you are in life</b> — the age flip; <b>(4) where you
-      live</b> — typically ±10–15% around the national benchmark, <em>with "where" climbing the
-      ranks as the search narrows</em>. The map below is the argument, interactive: every claim
-      can be scrubbed, filtered, and checked against its uncertainty.
+      live</b>. But rank them instead by what a person can <em>choose</em>, and the list inverts:
+      sex and age arrive on their own schedule, preferences aren't dials — <b>where is the one
+      lever you can pull</b>, and pulled well it is worth about a decade of the age curve. The
+      map below is the argument, interactive: every claim can be scrubbed, filtered, and checked
+      against its uncertainty.
     </div>
   </header>
 
@@ -214,7 +225,7 @@
   </div>
 
   <h2 class="sec">§2 · The same flip, on the map — and your own market</h2>
-  <p class="sub"><b>Claim: where you live nudges the number; who you are and what you seek set it.</b> Drag the age slider or press play and watch the map turn from blue to red — geography barely changes the story, age does. Scrub the <b>year slider</b> back to 2006 to watch two decades of the same picture: the pattern holds in every ACS vintage, even as individual metros drift. Then switch on the <b>matchmaking view</b> to measure <i>your</i> market: rivals per reciprocal match for your age, sex, race, education and search range. Six points are <b>cities, not metros</b> (dashed outline): Los Angeles, Long Beach and Anaheim are split out of their shared metro, San Francisco and Oakland out of theirs, and New York City stands alone — hover any of them for the geography caveat. And because administrative metro lines mislead exactly where the giants are — dating apps match by <i>radius</i>, not by CBSA — the <b>Boundaries</b> toggle offers two alternatives: <b>dating markets</b> (county-group cores: the five boroughs, the SF–Peninsula–South Bay corridor that the CBSA split in two, the East Bay, LA and Orange counties) and a <b>radius</b> field that drops boundaries entirely — every dot a neighbourhood, its market whatever lies within the radius you set, the way the apps actually draw it.</p>
+  <p class="sub"><b>Claim: on the aggregate map, age sets the story — but your own market needs finer instruments, and finer boundaries.</b> Drag the age slider or press play and watch the map turn from blue to red — on this view, age changes the picture far more than place. Scrub the <b>year slider</b> back to 2006 to watch two decades of the same pattern: it holds in every ACS vintage, even as individual metros drift. Then switch on the <b>matchmaking view</b> to measure <i>your</i> market: rivals per reciprocal match for your age, sex, race, education and search range. Six points are <b>cities, not metros</b> (dashed outline): Los Angeles, Long Beach and Anaheim are split out of their shared metro, San Francisco and Oakland out of theirs, and New York City stands alone — hover any of them for the geography caveat. And because administrative metro lines mislead exactly where the giants are — dating apps match by <i>radius</i>, not by CBSA — the <b>Boundaries</b> toggle offers two alternatives: <b>dating markets</b> (county-group cores: the five boroughs, the SF–Peninsula–South Bay corridor that the CBSA split in two, the East Bay, LA and Orange counties) and a <b>radius</b> field that drops boundaries entirely — every dot a neighbourhood, its market whatever lies within the radius you set, the way the apps actually draw it.</p>
 
   <div class="toolbar" style="margin-bottom:2px">
     <span class="lab">Race / origin</span>
@@ -363,6 +374,7 @@
   <h2 class="sec">§3 · Where you live matters more the narrower your search</h2>
   <p class="sub"><b>Claim: geography is a secondary lever — until the search narrows to a group concentrated in a few metros.</b> The race filter in §2 doesn't just recolor the map; it changes how much the map can help you at all.</p>
   <p class="ap">Each bar below spans the single sex ratio (men per 100 women, ages 25–34) from the 10th- to the 90th-percentile metro, <b>weighted by where singles of that group actually live</b> so a handful of tiny metros can't distort it — and each race band is drawn from the <b>5-year __ACS5RANGE__ PUMS</b>, whose ~5× sample is what makes a race×metro cell reliable enough to rank at all. Search across <b>everyone</b> and the range is only ~23 points (104 to 127): moving to a top-decile metro shifts your ratio by roughly ±10% — real, but the secondary lever this thesis claims it is. Narrow to a same-race partner, though, and it depends entirely on <i>which</i>. <b>White</b> and <b>Hispanic</b> singles live nearly everywhere, so their range is no wider than the all-comers search — Hispanic is actually <i>tighter</i>. But the range for a <b>Black</b> partner runs about a third wider — and skews <span class="women">female</span> (median 92 men per 100 women) — while an <b>Asian</b> partner's is roughly <i>double</i>, skewing <span class="men">male</span> (median 121), because those pools concentrate in a few metros whose balance swings hard. That is the abstract's <em>"where climbs the ranks as the search narrows,"</em> quantified — and quantified honestly: even on the 5-year sample the raw best-versus-worst metros look several times more extreme still, but that is small-sample noise these population-weighted bands strip out.</p>
+  <p class="ap"><b>And the narrowing compounds with the boundary.</b> Run the matchmaking view with the <b>education filter</b> at the <b>radius</b> boundary — the market as apps actually draw it — and geography's range roughly doubles again: for a college-educated 32-year-old man seeking college-educated women at a 50-mile radius, New York reads <b>−21%</b> against his national benchmark and Phoenix <b>+21%</b>, a spread wider than the entire 25-to-40 swing of his age curve; for his female counterpart the map inverts almost exactly (Denver and the Bay Area −30%, Atlanta and Philadelphia mildly against). The differences clear their margins of error at the tails — the middle of the table is statistical noise, and the map says so when you hover. This is the asterisk in the title: the first chapter's "not where" was measured at Census boundaries, and the finer the instrument, the more <em>where</em> — the one lever a person actually controls — comes back.</p>
   <div class="figure"><div class="chart-cap">How far the single sex ratio swings across metros, by who you're looking for</div>
     <svg id="leverage" viewBox="0 0 960 300" role="img" aria-label="Geographic spread of the single sex ratio by search group"></svg></div>
 
@@ -1785,8 +1797,9 @@ function start(){
 
   /* notes */
   document.getElementById("notes").innerHTML=`
-   <p><b>Why this fixes the original.</b> The 2007 map's implicit advice — move to the city with your favored surplus — barely survives contact with the age curve above. At 25–29, single men outnumber single women in 201 of 229 metros; by 60–64 women lead in 205 of 229. Almost everywhere is blue when young and red when old. Where you are nudges the number; how old you are sets the sign.</p>
-   <p><b>The narrower the search, the more geography matters.</b> The headline — age outweighs place — is most true for the <i>broadest</i> searchers: under the matchmaking view with default settings, most metros sit within roughly ±10–15% of the national market, and many differences fall inside the margin of error. Narrow the search — a specific race, an unusual age range, a high income floor — and the metro spread widens to <i>multiples</i>, in both market ratio and raw pool size (a targeted pool can be thirty times larger in one metro than another). So the honest hierarchy runs: who you are, then what you seek, then when you are in life, then where you live — with <i>where</i> climbing the ranks as the search narrows, though never mattering more than the search itself.</p>
+   <p><b>Why this fixes the original.</b> The 2007 map's implicit advice — move to the city with your favored surplus — barely survives contact with the age curve above. At 25–29, single men outnumber single women in 201 of 229 metros; by 60–64 women lead in 205 of 229. Almost everywhere is blue when young and red when old. On the aggregate map, where you are nudges the number; how old you are sets the sign.</p>
+   <p><b>The asterisk: why "not where" earned a correction of its own.</b> The first chapter's verdict was measured at Census metro boundaries, and those boundaries are the wrong market unit — dating apps match by <i>radius</i>, and CBSA lines dilute New York's dating core with far suburbs while splitting the Bay Area's one functional market in two. Re-measured at app radius with an assortative search (the education filter), geography's range roughly triples: a college-educated 32-year-old man spans −21% (New York) to +21% (Phoenix) against his national benchmark — wider than the entire 25-to-40 swing of his age curve — and the map inverts almost exactly for his female counterpart. No city flips any market's sign; the level is still set by who you are and what you seek. But of the four levers, sex and age arrive on their own schedule and preferences aren't dials: <b>where is the one lever a person actually controls, and pulled from one tail of the table to the other it is worth about a decade of the age curve.</b></p>
+   <p><b>The narrower the search, the more geography matters.</b> The age-outweighs-place reading is most true for the <i>broadest</i> searchers: under the matchmaking view with default settings, most metros sit within roughly ±10–15% of the national market, and many differences fall inside the margin of error. Narrow the search — a specific race, an unusual age range, a high income floor, a degree — and the spread widens to <i>multiples</i>, in both market ratio and raw pool size (a targeted pool can be thirty times larger in one metro than another). So the honest hierarchy runs: who you are, then what you seek, then when you are in life, then where you live — by <i>size</i>. Rank instead by what you can choose, and where stands alone.</p>
    <p><b>The time dimension.</b> The year slider runs 2006–2024 on each year's 1-year ACS (2020 is skipped — no standard 1-year release that year). Historical estimates use <b>that year's metro definitions</b>: OMB redrew metro boundaries in the 2013 and 2023 delineations, so a metro's jump across those seams can partly reflect the boundary, not the people — the New York metro is the largest example, which is why the "fading gap" figure above uses the boundary-stable <i>city</i>. Metros below the 65,000-population threshold (or outside a vintage's delineation) show "no 1-yr estimate" in some years. Historical margins of error come from the published tables (components combined by root-sum-square); 2024's come from the PUMS replicate weights. The PUMS-based views — economic, race, matchmaking — exist for 2024 only, so engaging one snaps the year back.</p>
    <p><b>What "single" means.</b> Every unmarried adult — never-married, divorced, separated, or widowed — from table <code>B12002</code>, matching the original National Geographic definition. (Never-married only would tilt nearly every bar and circle blue, since men marry later; the divorced and widowed are what create the female surpluses at older ages.)</p>
    <p><b>What a head-count gap still can't tell you.</b> Three limits no Census table removes: it counts <b>everyone single, not everyone looking</b> — the retired widower and the active dater are one number here; it ignores <b>who's compatible</b> — sexual orientation isn't in these tables, and most people partner near their own age, so a metro's overall surplus rarely matches the pool a given person actually draws from; and it treats <b>"unmarried" as "available,"</b> though many are cohabiting or otherwise partnered. Read it as a demographic portrait, not dating odds.</p>
