@@ -225,7 +225,7 @@
   </div>
 
   <h2 class="sec">§2 · The same flip, on the map — and your own market</h2>
-  <p class="sub"><b>Claim: on the aggregate map, age sets the story — but your own market needs finer instruments, and finer boundaries.</b> Drag the age slider or press play and watch the map turn from blue to red — on this view, age changes the picture far more than place. Scrub the <b>year slider</b> back to 2006 to watch two decades of the same pattern: it holds in every ACS vintage, even as individual metros drift. Then switch on the <b>matchmaking view</b> to measure <i>your</i> market: rivals per reciprocal match for your age, sex, race, education and search range. Six points are <b>cities, not metros</b> (dashed outline): Los Angeles, Long Beach and Anaheim are split out of their shared metro, San Francisco and Oakland out of theirs, and New York City stands alone — hover any of them for the geography caveat. And because administrative metro lines mislead exactly where the giants are — dating apps match by <i>radius</i>, not by CBSA — the <b>Boundaries</b> toggle offers two alternatives: <b>dating markets</b> (county-group cores: the five boroughs, the SF–Peninsula–South Bay corridor that the CBSA split in two, the East Bay, LA and Orange counties) and a <b>radius</b> field that drops boundaries entirely — every dot a neighbourhood, its market whatever lies within the radius you set, the way the apps actually draw it.</p>
+  <p class="sub"><b>Claim: on the aggregate map, age sets the story — but your own market needs finer instruments, and finer boundaries.</b> Drag the age slider or press play and watch the map turn from blue to red — on this view, age changes the picture far more than place. Scrub the <b>year slider</b> back to 2006 to watch two decades of the same pattern: it holds in every ACS vintage, even as individual metros drift. Then switch on the <b>matchmaking view</b> to measure <i>your</i> market: rivals per reciprocal match for your age, sex, race, education and search range. The map opens on <b>Radius</b> — no administrative lines at all: every dot is a neighbourhood (a PUMA, ~100k people) and its market is whatever lies within the distance you set, the way dating apps actually draw one. That is the default because metro lines mislead exactly where the giants are, and the <b>Boundaries</b> toggle holds the comparison: <b>dating markets</b> (county-group cores — the five boroughs, the SF–Peninsula–South Bay corridor that the CBSA split in two, the East Bay, LA and Orange counties) and the original <b>Metros (CBSA)</b> view, where the year slider and the city insets live (six points there are <b>cities, not metros</b> — LA, Long Beach and Anaheim split out of their shared metro, San Francisco and Oakland out of theirs, New York City alone; hover any for the geography caveat). Switching boundaries changes only <i>which geographies exist</i> — never the metric.</p>
 
   <div class="toolbar" style="margin-bottom:2px">
     <span class="lab">Race / origin</span>
@@ -257,11 +257,11 @@
   <div class="toolbar" style="margin-bottom:2px">
     <span class="lab">Boundaries</span>
     <div class="seg" id="bndSeg" role="group" aria-label="Boundary type">
-      <button data-b="cbsa" aria-pressed="true">Metros (CBSA)</button>
+      <button data-b="cbsa" aria-pressed="false">Metros (CBSA)</button>
       <button data-b="market" aria-pressed="false">Dating markets</button>
-      <button data-b="radius" aria-pressed="false">Radius</button>
+      <button data-b="radius" aria-pressed="true">Radius</button>
     </div>
-    <span class="lab" id="radiusCtl" style="display:none">· radius <b id="rLab">25</b> mi
+    <span class="lab" id="radiusCtl">· radius <b id="rLab">25</b> mi
       <input type="range" id="rSlider" min="5" max="60" step="5" value="25" style="vertical-align:middle;width:180px"></span>
   </div>
   <p class="racehint" id="bndhint"></p>
@@ -585,7 +585,7 @@ function start(){
      need the 80 replicate weights per cell). */
   function ensurePumas(){
     if(PUMAS||pumaReq) return;
-    document.getElementById("bndhint").innerHTML="Loading the radius layer (~2 MB)…";
+    document.getElementById("bndhint").innerHTML="Loading the radius layer (~2 MB gzipped) — metro circles are standing in until it arrives…";
     pumaReq=fetch("puma_radius.json").then(r=>{ if(!r.ok) throw 0; return r.json(); }).then(j=>{
       PUMAS=j;
       for(const [k,p] of Object.entries(j.pumas)){
@@ -601,9 +601,20 @@ function start(){
                     base:{m:p.m_, w:p.w_, mV:p.m_m.map(v=>v*v), wV:p.w_m.map(v=>v*v)}, edu});
       }
       PUMAP.sort((a,b)=>a.lat-b.lat);
-      buildNeighbors(); drawPumas(); pumaDirty=true; setBndUI(); update(false);
+      buildNeighbors(); drawPumas(); pumaDirty=true; setBndUI();
+      if(!seeker.on) syncBndTables();          // metro rankings -> the radius note
+      update(false);
     }).catch(()=>{ pumaReq=null;
       document.getElementById("bndhint").innerHTML="<b>Couldn’t load the radius layer</b> (puma_radius.json). Check the connection and re-select Radius."; });
+  }
+  function ensurePumaRace(){                 // second layer, only when race is engaged here
+    if(PUMARACE||praceReq||!PUMAS) return;
+    praceReq=fetch("puma_radius_race.json").then(r=>{ if(!r.ok) throw 0; return r.json(); }).then(j=>{
+      PUMARACE=j;
+      for(const p of PUMAP) p.race=j.pumas[p.k]||{};
+      pumaDirty=true; update(false);
+    }).catch(()=>{ praceReq=null;
+      document.getElementById("bndhint").innerHTML="<b>Couldn’t load the race layer</b> (puma_radius_race.json) — race filtering is unavailable at this boundary until it loads."; });
   }
   function buildNeighbors(){                 // sorted [index, miles] lists within 60 mi
     const RE=3958.8, rad=Math.PI/180, MAXLAT=60/69+0.05;
@@ -625,6 +636,7 @@ function start(){
     const m=new Array(45).fill(0), w=new Array(45).fill(0),
           mV=new Array(45).fill(0), wV=new Array(45).fill(0);
     const edu={ba:{m:{},w:{}},noba:{m:{},w:{}}};
+    const race=PUMARACE?{}:null;             // null until the 5-year race layer is in
     for(const [j,d] of nbrL[i]){
       if(d>rMi) break;
       const p=PUMAP[j];
@@ -633,11 +645,19 @@ function start(){
         const src=p.edu[g][s], dst=edu[g][s];
         for(const ag in src){ const c=dst[ag]||(dst[ag]=[0,0]); c[0]+=src[ag][0]; c[1]+=src[ag][1]**2; }
       }
+      if(race&&p.race) for(const q in p.race){
+        const dq=race[q]||(race[q]={m:{},w:{}});
+        for(const s in p.race[q]){ const src=p.race[q][s], dst=dq[s];
+          for(const ag in src){ const c=dst[ag]||(dst[ag]=[0,0]); c[0]+=src[ag][0]; c[1]+=src[ag][1]**2; } }
+      }
     }
     for(const g of ["ba","noba"]) for(const s of ["m","w"]){
       const dst=edu[g][s]; for(const ag in dst) dst[ag][1]=Math.sqrt(dst[ag][1]);
     }
-    return {m, w, m_moe:mV.map(Math.sqrt), w_moe:wV.map(Math.sqrt), edu};
+    if(race) for(const q in race) for(const s of ["m","w"]){
+      const dst=race[q][s]; for(const ag in dst) dst[ag][1]=Math.sqrt(dst[ag][1]);
+    }
+    return {m, w, m_moe:mV.map(Math.sqrt), w_moe:wV.map(Math.sqrt), edu, race};
   }
   function refreshPumaNodes(){               // recompute all markets for the current rMi
     for(let i=0;i<PUMAP.length;i++) PUMAP[i]._nd=radiusNode(i);
@@ -651,20 +671,25 @@ function start(){
      opposite-sex singles. MOEs are the same weighted mean — approximate, since
      overlapping markets are strongly correlated (said in the hint). */
   function mEffLocalOf(p){                   // reciprocal matches in ONE puma
+    /* the v2 weights must be built from the SAME pool the ratio is measured on —
+       weighting race-filtered ratios by all-race supply would tilt the average
+       toward neighbourhoods that are merely populous. Mirrors buildInputs,
+       including its edu-over-race precedence. */
     const O=seeker.sex==="m"?"w":"m";
+    const ageW=a=>{ const ko=CG[O][a]; return ko?(ko[seeker.age-a]||0)/cgPeak[O][a]:0; };
     let mEff=0;
     if(eduOn()){
       const src=p.edu[seeker.seekEdu][O], wA=eduAffN();
-      for(let a=seeker.lo;a<=seeker.hi;a++){
-        const ko=CG[O][a], w=ko?(ko[seeker.age-a]||0)/cgPeak[O][a]:0;
-        const c=src[a]; if(c) mEff+=c[0]*wA*w;
+      for(let a=seeker.lo;a<=seeker.hi;a++){ const c=src[a]; if(c) mEff+=c[0]*wA*ageW(a); }
+    } else if(raceOn()){
+      if(!p.race) return 0;                  // race layer not in yet
+      for(const q of seeker.seek){
+        const w=affN(q), src=p.race[q]&&p.race[q][O]; if(!src) continue;
+        for(let a=seeker.lo;a<=seeker.hi;a++){ const c=src[a]; if(c) mEff+=c[0]*w*ageW(a); }
       }
     } else {
       const arr=p.base[O];
-      for(let a=Math.max(20,seeker.lo);a<=Math.min(64,seeker.hi);a++){
-        const ko=CG[O][a], w=ko?(ko[seeker.age-a]||0)/cgPeak[O][a]:0;
-        mEff+=arr[a-20]*w;
-      }
+      for(let a=Math.max(20,seeker.lo);a<=Math.min(64,seeker.hi);a++) mEff+=arr[a-20]*ageW(a);
     }
     return mEff;
   }
@@ -683,8 +708,28 @@ function start(){
       if(sw>0) r._sr2={ratio:sr/sw, moe:sm/sw};
     }
   }
+  /* base-view values for a dot, honouring the active lens. Race and education
+     read the sparse per-age cells; income/employment aren't shipped per PUMA, so
+     they return null (the dot reads "no estimate") rather than silently showing
+     all singles under an economic label. */
+  function sparseBand(node){                 // {m:{age:[est,moe]},w:…} -> band totals
+    const lo=sel<0?20:20+sel*5, hi=sel<0?64:24+sel*5;
+    let m=0,w=0,mv=0,wv=0;
+    for(let a=lo;a<=hi;a++){
+      const cm=node.m[a], cw=node.w[a];
+      if(cm){ m+=cm[0]; mv+=cm[1]**2; }
+      if(cw){ w+=cw[0]; wv+=cw[1]**2; }
+    }
+    return {m, w, mMoe:Math.sqrt(mv), wMoe:Math.sqrt(wv)};
+  }
   function pumaVals(r){                      // {m,w,mMoe,wMoe} for the age-slider band (or all)
     const nd=r._nd; if(!nd) return null;
+    if(race!=="all"){
+      const n=nd.race&&nd.race[RACE_KEY[race]];
+      return n?sparseBand(n):null;           // null while the 5-year race layer loads
+    }
+    if(econ==="ba"||econ==="noba") return sparseBand(nd.edu[econ]);
+    if(econ!=="all") return null;            // income / employment: no PUMA-level cells
     const lo=sel<0?0:sel*5, hi=sel<0?44:sel*5+4;
     let m=0,w=0,mv=0,wv=0;
     for(let a=lo;a<=hi;a++){ m+=nd.m[a]; w+=nd.w[a]; mv+=nd.m_moe[a]**2; wv+=nd.w_moe[a]**2; }
@@ -700,12 +745,12 @@ function start(){
   let zoomK=1;
   const zoomB=d3.zoom().scaleExtent([1,12])
     .extent([[0,0],[W,H]]).translateExtent([[0,0],[W,H]])          // explicit: pan stays on the map
-    .filter(e=> bnd==="radius" && (e.type!=="wheel"||e.ctrlKey))   // plain wheel keeps scrolling the page
+    .filter(e=> radiusOn() && (e.type!=="wheel"||e.ctrlKey))       // plain wheel keeps scrolling the page
     .on("zoom",e=>{
       zoomK=e.transform.k;
       gMap.attr("transform",e.transform); gL.attr("transform",e.transform);
       gMap.selectAll("path.state").attr("stroke-width",1/zoomK);
-      if(pumaSel&&bnd==="radius") pumaSel.attr("r",3.2/zoomK);
+      if(radiusOn()) pumaSel.attr("r",3.2/zoomK);
       gL.selectAll("text").style("font-size",(10.5/zoomK)+"px").style("stroke-width",(2.6/zoomK)+"px");  // inline style beats the .lbl class rule
     });
   function setZoom(on){
@@ -739,12 +784,18 @@ function start(){
   };
 
   let mode="abs", sel=-1, race="all", econ="all"; // sel -1 = all ages
-  let bnd="cbsa";                                 // boundary type: cbsa | market | radius
+  let bnd="radius";                               // boundary type: cbsa | market | radius (default)
   let rMi=25;                                     // radius (miles) for the radius boundary
   /* radius layer: lazy-loaded PUMA field (see build_puma_radius.py). PUMAP rows
      carry base dense arrays + edu sparse cells in the AGE-node shape, so the
      seeker machinery runs on radius aggregates unchanged. */
   let PUMAS=null, pumaReq=null, PUMAP=[], nbrL=null, pumaSel=null, pumaDirty=true;
+  /* race at radius rides in a SECOND lazy layer: race x PUMA x single-year needs
+     the 5-year PUMS (the 1-year cell is noise), and it is only fetched if the
+     visitor actually engages race here — the default view never pays for it. */
+  let PUMARACE=null, praceReq=null;
+  const radiusOn=()=> bnd==="radius" && !!PUMAS;   // dots render only once the layer is in
+  const raceWanted=()=> race!=="all" || (seeker.on && raceOn());
   let tblDir="women", tblRace="all";              // ranking-table state (shared with deep links)
   const seeker={on:false, sex:"m", age:30, lo:28, hi:31,
                 myRace:"none", seek:new Set(["any"]),
@@ -769,7 +820,7 @@ function start(){
   // and pumsOnly circles; every other metro is unchanged. Radius: the PUMA field
   // replaces every metro/inset/core circle.
   function shown(r){
-    if(bnd==="radius") return false;                             // the PUMA field takes over
+    if(radiusOn()) return false;                                 // the PUMA field takes over
     if(r.core) return bnd==="market" && (seeker.on || hasData(r));
     if(bnd==="market" && (r.city || r.pumsOnly)) return false;   // replaced by cores
     if(seeker.on) return !!(r.code && AGE.metros[r.code]);       // insets + CT hidden
@@ -1035,7 +1086,7 @@ function start(){
   }
   function nearestMetro(mx,my){
     let best=null, bd=Infinity;
-    if(bnd==="radius"){
+    if(radiusOn()){
       for(const r of PUMAP){
         const dx=r.x-mx, dy=r.y-my, dd=dx*dx+dy*dy;
         if(dd<bd){ bd=dd; best=r; }
@@ -1054,7 +1105,7 @@ function start(){
   const gL=svg.append("g");
   function drawLabels(){
     gL.selectAll("*").remove();
-    if(bnd==="radius"){                           // text-only city labels for orientation
+    if(radiusOn()){                               // text-only city labels for orientation
       const seen=new Set();
       for(const L of LABELS){
         const r=pts.find(p=>!p.city&&!p.core&&(p.full.startsWith(L.m)||p.n===L.m||p.full.indexOf(L.m)>-1));
@@ -1088,7 +1139,7 @@ function start(){
   function drawLegend(){
     gLeg.selectAll("*").remove();
     const cx=W/2, baseY=68;
-    if(bnd==="radius"){
+    if(radiusOn()){
       gLeg.append("text").attr("x",cx).attr("y",18).attr("text-anchor","middle").attr("class","leghead")
         .text(`Each dot = a PUMA (~100k people) · its market = singles within ${rMi} miles`);
       const items = seeker.on
@@ -1130,7 +1181,7 @@ function start(){
   const cm=document.getElementById("cm"), cw=document.getElementById("cw"), cu=document.getElementById("cu");
   function updateCounter(){
     let a=0,b=0,close=0;   // a=male/favorable, b=female/tough
-    if(bnd==="radius"){
+    if(radiusOn()){
       const nr=natRef();
       for(const r of PUMAP){
         if(seeker.on){
@@ -1204,7 +1255,8 @@ function start(){
     if(seeker.on){ seekNational(); for(const r of pts) r._sr = seekerData(r); }
     if(bnd==="radius"){
       if(!PUMAS) ensurePumas();
-      else{
+      else if(raceWanted()&&!PUMARACE) ensurePumaRace();
+      if(PUMAS){
         if(pumaDirty) refreshPumaNodes();
         if(seeker.on) refreshPumaSeeker();
       }
@@ -1226,7 +1278,7 @@ function start(){
     if(active) tip.innerHTML=tipHTML(active);   // keep an open tooltip fresh across control changes
     // in seeker mode the age-band slider, play and sizing modes have no effect — say so
     ageRow.classList.toggle("disabled",seeker.on); slider.disabled=seeker.on; playBtn.disabled=seeker.on;
-    document.getElementById("modeSeg").classList.toggle("segoff2",seeker.on||bnd==="radius");  // dots are fixed-size
+    document.getElementById("modeSeg").classList.toggle("segoff2",seeker.on||radiusOn());  // dots are fixed-size
     setYearUI(); drawLabels(); drawLegend(); updateCounter(); syncTables(); writeURL();
   }
 
@@ -1279,7 +1331,7 @@ function start(){
      Cores and the radius field are current-year PUMS only -> year snaps to latest. */
   const BND_HINTS={
     market:`CBSA metro lines mislead exactly where the giants are: New York's boundary <b>dilutes</b> its dating core with far suburbs, while the Bay Area's <b>splits one app-radius market in two</b> (San Francisco and San Jose are separate CBSAs). This view swaps them for county-group <b>functional markets</b> — the five boroughs; the SF–Peninsula–South Bay corridor; the East Bay; LA and Orange counties — built from PUMS microdata with the same margin-of-error discipline (race/education cells here are 1-year, so wider margins than the metro race views). Every other metro keeps its CBSA boundary: single-core commute sheds, where the metro ≈ the market. Giant-metro suburbs outside a core aren't shown. Current-year data only.`,
-    radius:`Dating apps match by <b>radius</b>, so this view drops administrative boundaries entirely: every dot is a PUMA (~100k people), and its numbers are the market within the chosen radius of it — a continuous field where neighbouring dots overlap and share pool. Drag the radius and watch the Bay Area flip as San Jose enters San Francisco's market. In the matchmaking view, <b>competition is measured where your matches live</b>: your rivals aren't the same-sex singles within <i>your</i> radius but the ones within your <i>matches'</i> radii — a rival up to twice the radius away still competes for the people between you — so each dot's ratio is the match-weighted average of the rival pressure its reachable partners actually see. Estimates are exact sums; margins combine by root-sum-square across PUMAs, so the ±s here are approximate — and because neighbours overlap, dots can't be ranked as a list (no tables) and the tie test is off. The <b>race filter is unavailable</b> at this boundary: PUMA-level race×single-year cells are noise-dominated, so they aren't shipped. Education works. Current-year data only. PUMAs are population-spaced, so metros crowd at national scale — <b>drag to pan, double-click or ctrl+scroll to zoom</b> (dots keep their size; city labels are for orientation).`};
+    radius:`Dating apps match by <b>radius</b>, so this view drops administrative boundaries entirely: every dot is a PUMA (~100k people), and its numbers are the market within the chosen radius of it — a continuous field where neighbouring dots overlap and share pool. Drag the radius and watch the Bay Area flip as San Jose enters San Francisco's market. In the matchmaking view, <b>competition is measured where your matches live</b>: your rivals aren't the same-sex singles within <i>your</i> radius but the ones within your <i>matches'</i> radii — a rival up to twice the radius away still competes for the people between you — so each dot's ratio is the match-weighted average of the rival pressure its reachable partners actually see. Estimates are exact sums; margins combine by root-sum-square across PUMAs, so the ±s here are approximate — and because neighbours overlap, dots can't be ranked as a list (no tables) and the tie test is off. <b>Race and education both filter here</b>; race loads a second file on demand and comes from the <b>5-year __ACS5RANGE__ PUMS</b>, because a race×PUMA×single-year cell on the 1-year sample is pure noise — so race views at this boundary mix vintages exactly as the metro race lens does. To keep that layer loadable, race cells under 10 people are dropped per PUMA, which runs the totals slightly low — under 1% for the large groups, up to ~5–7% for the smallest (Two+, Other), well inside those cells' own margins. Income and employment aren't shipped per PUMA (those dots read "no estimate"). Current-year data otherwise. PUMAs are population-spaced, so metros crowd at national scale — <b>drag to pan, double-click or ctrl+scroll to zoom</b> (dots keep their size; city labels are for orientation).`};
   function setBndUI(){
     [...document.querySelectorAll("#bndSeg button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.b===bnd));
     const h=document.getElementById("bndhint");
@@ -1287,14 +1339,12 @@ function start(){
     h.classList.toggle("show",bnd!=="cbsa");
     document.getElementById("radiusCtl").style.display = bnd==="radius" ? "" : "none";
     document.getElementById("rLab").textContent=rMi;
-    setZoom(bnd==="radius");
+    setZoom(radiusOn());
   }
   document.getElementById("bndSeg").addEventListener("click",e=>{
     const b=e.target.closest("button"); if(!b)return;
     bnd=b.dataset.b;
     if(bnd!=="cbsa") resetYear();
-    if(bnd==="radius" && !seeker.seek.has("any"))        // no race cells at radius
-      seeker.seek=new Set(["any"]);
     setSeekRaceUI(); setBndUI();
     if(seeker.on) seekerLabels();                        // coverage sentence tracks the boundary
     syncBndTables();
@@ -1309,7 +1359,7 @@ function start(){
      (overlapping markets can't be ranked as a list) */
   function syncBndTables(){
     if(seeker.on) return;                                // syncTables handles seeker
-    if(bnd==="radius"){
+    if(radiusOn()){
       const wrap=document.getElementById("ratioTables");
       wrap.innerHTML=`<div class="tbl-card" style="grid-column:1 / -1"><h3>No rankings at the radius boundary</h3>
         <p class="cap">Radius markets overlap — neighbouring dots share most of their pool, so a top-100 list would be one neighbourhood repeated a dozen times. Hover the map instead, or switch to Metros (CBSA) or Dating markets for rankings.</p></div>`;
@@ -1346,7 +1396,7 @@ function start(){
       `Because the ratio's absolute level depends on how concentrated K is, <b>colors compare each metro to the national market computed the same way for you</b> (shown as "US" in the tooltip) rather than to a fixed 100. `+
       `The default range is the middle 50% of ${seeker.sex==="m"?"men":"women"}'s partners at your age in recently-formed unions; drag the sliders to set your own.`+raceNote+eduNote+` `+
       (bnd==="radius"
-        ? `Covers every PUMA in the country — each dot's market is the singles within ${rMi} miles of it, rural areas included. Race filtering is unavailable at this boundary (PUMA race cells are noise); education works.`
+        ? `Covers every PUMA in the country — each dot's market is the singles within ${rMi} miles of it, rural areas included. Education and race both filter here; race is drawn from the 5-year __ACS5RANGE__ PUMS (a race×PUMA×single-year cell needs the bigger sample) and loads on demand.`
         : bnd==="market"
         ? `Covers 221 CBSA metros + the 5 dating-market cores (not the 5 Connecticut metros, city insets, or giant-metro suburbs outside a core).`
         : `Covers the 224 PUMS metros — New York, Los Angeles and San Francisco as whole metros (not the 5 Connecticut metros or city insets).`)+`${natWarn}`;
@@ -1407,7 +1457,7 @@ function start(){
     else if(yearPast()) p.set("yr",YEARSL[yi]);
     if(tblDir!=="women") p.set("tdir",tblDir);
     if(tblRace!=="all") p.set("trace",RSHORT_INV[tblRace]);
-    if(bnd!=="cbsa") p.set("bnd",bnd);
+    if(bnd!=="radius") p.set("bnd",bnd);
     if(bnd==="radius"&&rMi!==25) p.set("rmi",rMi);
     const h=p.toString();
     history.replaceState(null,"",h?"#"+h:location.pathname+location.search);
@@ -1416,7 +1466,7 @@ function start(){
     const p=new URLSearchParams(location.hash.slice(1));
     if(![...p.keys()].length) return;
     const g=k=>p.get(k);
-    if(["market","radius"].includes(g("bnd"))){
+    if(["market","radius","cbsa"].includes(g("bnd"))){
       bnd=g("bnd");
       const rp=+g("rmi");
       if(bnd==="radius"&&rp>=5&&rp<=60){ rMi=rp; document.getElementById("rSlider").value=rp; }
@@ -1457,8 +1507,7 @@ function start(){
   function setSeekRaceUI(){
     [...document.querySelectorAll("#seekerMyRace button")].forEach(x=>x.setAttribute("aria-pressed",x.dataset.mr===seeker.myRace));
     [...document.querySelectorAll("#seekerSeekRace button")].forEach(x=>x.setAttribute("aria-pressed",seeker.seek.has(x.dataset.sr)));
-    document.getElementById("seekerSeekRace").classList.toggle("segoff",seeker.myRace==="none"||bnd==="radius");
-    document.getElementById("seekerMyRace").classList.toggle("segoff",bnd==="radius");   // no race cells at radius
+    document.getElementById("seekerSeekRace").classList.toggle("segoff",seeker.myRace==="none");
   }
   document.getElementById("seekerMyRace").addEventListener("click",e=>{
     const b=e.target.closest("button"); if(!b)return;
@@ -1468,7 +1517,6 @@ function start(){
   });
   document.getElementById("seekerSeekRace").addEventListener("click",e=>{
     const b=e.target.closest("button"); if(!b)return;
-    if(bnd==="radius") return;                         // no race cells at radius
     const v=b.dataset.sr;
     if(v==="any") seeker.seek=new Set(["any"]);
     else{
@@ -1681,7 +1729,7 @@ function start(){
   /* ---- seeker-mode ranking: §5 becomes your personal table ---- */
   function renderSeekerTable(){
     const wrap=document.getElementById("ratioTables"); wrap.innerHTML="";
-    if(bnd==="radius"){
+    if(radiusOn()){
       wrap.innerHTML=`<div class="tbl-card" style="grid-column:1 / -1"><h3>No personal ranking at the radius boundary</h3>
         <p class="cap">Radius markets overlap — neighbouring dots share most of their pool, so a ranked list would repeat one neighbourhood. Hover the map for your numbers anywhere, or switch to Metros (CBSA) or Dating markets for the ranking.</p></div>`;
       return;
@@ -1809,6 +1857,7 @@ function start(){
   /* initial render: after every section's declarations (a seeker deep link
      renders the personal ranking table on first paint) */
   applyURL();
+  setBndUI();                                    // radius is the default: sync seg, hint, radius slider, zoom
   syncTableSegs();
   if(!seeker.on) syncBndTables();                // seeker case: update()->syncTables renders the personal table
   update(false);

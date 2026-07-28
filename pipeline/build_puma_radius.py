@@ -17,11 +17,15 @@ approximation — the same one moeOf uses across bands; exact SDR would require
 shipping 80 replicate weights per cell). The layer is LAZY-LOADED by the map
 (fetched on first use), not baked into the HTML: ~8 MB raw / ~2 MB gzipped.
 
+Race is NOT in this file: a race x PUMA x single-year 1-year cell is noise. It
+ships as a companion 5-year layer (`--race` -> data/puma_radius_race.json),
+fetched by the map only when race is engaged at this boundary.
+
 Reuses build_pums_age's per-state aggregate caches. Needs CENSUS_API_KEY for
 the 2020 tract populations (one decennial PL call per state, cached).
-Output: data/puma_radius.json. build_map.py copies it into site/.
+Output: data/puma_radius.json (+ _race.json). build_map.py copies both into site/.
 """
-import csv, io, json, os, time, zipfile
+import csv, io, json, os, sys, time, zipfile
 import numpy as np, pandas as pd, requests
 import build_pums_bulk as B
 import build_pums_age as A
@@ -113,7 +117,54 @@ def fill(node, rows, mkey, wkey):
         arr = p.setdefault(k, [0]*45); arr[i] = round(r.est)
         arrm = p.setdefault(k + 'm', [0]*45); arrm[i] = round(r.moe)
 
+def race_layer():
+    """Second lazy layer: per-PUMA race x single-year cells, from the 5-YEAR PUMS.
+
+    Race is the one dimension the project always takes from the 5-year sample
+    (CLAUDE.md): a race x geography x single-year cell is thin, and the radius
+    aggregate is only as good as the cells feeding it. Shipped separately from
+    the base layer and fetched only when race is engaged at this boundary, so
+    the default radius view doesn't pay for it.
+    Output: data/puma_radius_race.json  {pkey: {race: {sex: {age: [est, moe]}}}}
+    """
+    B.set_vintage('5yr')
+    print(f'(5-year vintage: {B.config.VINTAGE5})')
+    parts = []
+    for i, st in enumerate(B.STATES):
+        # collapse the edu dim per state before concatenating: same cells, half the
+        # rows to hold at once (the 5-year aggregate fills many more of them)
+        parts.append(A.aggregate_age_state(st)
+                      .groupby(['pkey', 'AGEP', 'sex', 'race'], observed=True).sum())
+        print(st, end=' ', flush=True)
+        if (i + 1) % 13 == 0: print()
+    print('\nstates aggregated (5-year).')
+    race = est_moe(pd.concat(parts), ['pkey', 'AGEP', 'sex', 'race'])
+
+    pumas, dropped, kept = {}, 0, 0
+    for r in race.itertuples():
+        a = int(r.AGEP)
+        if a < 20 or a > 64: continue
+        est = round(r.est)
+        if est < A.SPARSE_FLOOR: dropped += 1; continue
+        kept += 1
+        pumas.setdefault(r.pkey, {}).setdefault(r.race, {}).setdefault(r.sex, {})[a] = \
+            [est, round(r.moe)]
+    out = {'meta': {'vintage': f'{B.config.VINTAGE5} PUMS',
+                    'note': 'single (MAR!=1) m/w by single year of age x mutually-exclusive '
+                            'race, per 2020 PUMA, from the 5-YEAR PUMS (~5x sample: a race x '
+                            'PUMA x single-year cell is unusable on the 1-year). Sparse: cells '
+                            f'under {A.SPARSE_FLOOR} people dropped. Companion to '
+                            'puma_radius.json (base/edu, 1-year) — race views at the radius '
+                            'boundary therefore mix vintages, exactly as the metro race lens does.'},
+           'pumas': pumas}
+    json.dump(out, open(B.DATA / 'puma_radius_race.json', 'w'))
+    kb = (B.DATA / 'puma_radius_race.json').stat().st_size // 1024
+    print(f'wrote puma_radius_race.json  ({len(pumas)} PUMAs, {kb:,} KB; '
+          f'{kept:,} cells kept, {dropped:,} sparse cells dropped)')
+
 def main():
+    if '--race' in sys.argv:
+        return race_layer()
     cen = centroids_and_names()
     print(f'centroids: {len(cen)} PUMAs')
     parts = []
@@ -142,9 +193,10 @@ def main():
                     'note': 'single (MAR!=1) m/w by single year of age 20-64 per 2020 PUMA, '
                             'dense arrays est+MOE(SDR 90%); eb_*/en_* = BA+ / no-BA split. '
                             'Radius sums combine MOEs by RSS across PUMAs (independence '
-                            'approximation). No race cells: PUMA-level race x single-year '
-                            '1-yr cells are noise-dominated. Centroids: 2020-tract-pop-'
-                            'weighted internal points; name = modal county.',
+                            'approximation). Race lives in the companion 5-year layer '
+                            '(build_puma_radius.py --race -> puma_radius_race.json), because '
+                            'a race x PUMA x single-year 1-year cell is noise. Centroids: '
+                            '2020-tract-pop-weighted internal points; name = modal county.',
                     'keys': 'm_/w_ base est, m_m/w_m base MOE; eb_m/eb_w/eb_mm/eb_wm BA+; '
                             'en_* no-BA'},
            'pumas': pumas}

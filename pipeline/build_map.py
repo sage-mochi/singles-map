@@ -131,16 +131,21 @@ def main():
     OUTPUT.write_text(out, encoding="utf-8")
     print(f"wrote {OUTPUT}  ({len(out)//1024} KB)")
 
-    # Radius boundary layer: too heavy to bake (~8 MB raw) — published beside the
-    # HTML and lazy-loaded by the map on first use of the Radius boundary type.
-    pr = optional("puma_radius.json")
-    if pr:
-        dst = ROOT / "site" / "puma_radius.json"
-        dst.write_text(minify_json(pr.read_text(encoding="utf-8")), encoding="utf-8")
-        print(f"published site/puma_radius.json  ({dst.stat().st_size//1024} KB, lazy radius layer)")
-    else:
-        print("warning: puma_radius.json absent — the Radius boundary will fail to load")
-    print("Deploy: commit site/*.html + site/puma_radius.json — Pages serves only site/.")
+    # Radius boundary layers: too heavy to bake — published beside the HTML and
+    # lazy-loaded. The base layer loads with the Radius boundary (now the default);
+    # the 5-year race layer only when race is engaged there.
+    for name, label, warn in (
+        ("puma_radius.json",      "base/edu, 1-year", "the Radius boundary will fail to load"),
+        ("puma_radius_race.json", "race, 5-year",     "race filtering at the Radius boundary will fail"),
+    ):
+        src = optional(name)
+        if src:
+            dst = ROOT / "site" / name
+            dst.write_text(minify_json(src.read_text(encoding="utf-8")), encoding="utf-8")
+            print(f"published site/{name}  ({dst.stat().st_size//1024} KB, lazy layer — {label})")
+        else:
+            print(f"warning: {name} absent — {warn}")
+    print("Deploy: commit site/*.html + site/puma_radius*.json — Pages serves only site/.")
 
 if __name__ == "__main__":
     main()
